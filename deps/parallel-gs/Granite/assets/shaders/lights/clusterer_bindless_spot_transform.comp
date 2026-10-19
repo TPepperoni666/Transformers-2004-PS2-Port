@@ -1,0 +1,73 @@
+#version 450
+
+layout(local_size_x = 64) in;
+
+#include "clusterer_data.h"
+
+layout(push_constant) uniform Registers
+{
+    mat4 vp;
+    vec3 camera_pos;
+    uint num_lights;
+    vec3 camera_front;
+    float z_near;
+    float z_far;
+} registers;
+
+struct TransformedSpot
+{
+    vec4 clip[5];
+    vec4 z;
+};
+
+layout(std430, set = 0, binding = 0) readonly buffer ClustererData
+{
+    ClustererBindlessTransforms cluster_transforms;
+};
+
+layout(std430, set = 0, binding = 1) writeonly buffer TransformedSpots
+{
+    TransformedSpot spots[];
+} transformed;
+
+void main()
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= registers.num_lights)
+        return;
+
+    mat_affine m = cluster_transforms.model[index];
+    vec3 p[5];
+    p[0] = mat_affine_get_translation(m);
+    vec3 pz = p[0] + mat_affine_get_forward(m);
+    vec3 right = mat_affine_get_right(m);
+    vec3 up = mat_affine_get_up(m);
+    p[1] = pz + right + up;
+    p[2] = pz - right + up;
+    p[3] = pz - right - up;
+    p[4] = pz + right - up;
+
+    float z[5];
+    for (int i = 0; i < 5; i++)
+        z[i] = dot(p[i] - registers.camera_pos, registers.camera_front);
+
+    float z_lo = z[0];
+    float z_hi = z[0];
+    for (int i = 1; i < 5; i++)
+    {
+        z_lo = min(z_lo, z[i]);
+        z_hi = max(z_hi, z[i]);
+    }
+
+    float cull;
+    if (z_lo <= registers.z_near && z_hi >= registers.z_far)
+        cull = 0.0;
+    else if (z_lo <= registers.z_near)
+        cull = -1.0;
+    else
+        cull = 1.0;
+
+    for (int i = 0; i < 5; i++)
+        transformed.spots[index].clip[i] = registers.vp * vec4(p[i], 1.0);
+    transformed.spots[index].z = vec4(cull, z_lo, z_hi, 0.0);
+}

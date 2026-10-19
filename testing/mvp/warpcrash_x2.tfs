@@ -1,0 +1,76 @@
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# then open the in-game pause menu and screenshot its items (no stick input in scripts, so the gate behind Optimus
+# cannot be re-entered; quitting the level through the pause menu tears the level scene down the same way).
+# Requires your own matching saved-game state; distributed seeds are omitted.
+budget 2300s
+stall 600 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+
+boot:     wait seen /FMV/NATTRACT.PSS timeout 4000vs           # notices + 2 logos, untouched
+          wait pads 4
+title:    press start until pads 200 every 40 max 5            # START#1 skips the CG, a later one: title -> main menu
+          mark main_menu                                       # NEW GAME highlighted
+menu:     press down                                           # -> CONTINUE GAME
+          wait pads 20
+          mark main_continue_game
+          press cross                                          # -> "Saved Games" list, slot 1 = Amazon / Ruined Temple
+          wait pads 60 timeout 9000vs
+          mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs   # load slot 1 -> hub loads
+hubload:  wait pads 40 timeout 9000vs                          # hub camera settles; "View Mission Sites" preselected
+          mark hub_view_mission_sites
+missions: press cross until cd /FMV/LEVELS/N01AMA.M2V every 60 max 2 timeout 1500vs   # globe + Amazon preview movie
+          wait pads 4
+          mark globe
+globe:    press cross hold=2 gap=4                             # -> warp gate screen ("RUINED TEMPLE" preselected)
+          wait pads 30 timeout 9000vs
+          mark warp_gate_ruined_temple
+enter:    press cross until cd /TFA.ZIP@1940-44053 or cd /SOUND/MUSIC/AMAZON.MS or cd /SOUND/MUSIC/TEMPLE.MS every 30 max 3 timeout 3000vs
+          mark level_load
+ingame:   wait pads 200 timeout 20000vs                        # warp-in: Optimus steps out of the Ruined Temple gate
+          mark warp_in
+          wait pads 300 timeout 20000vs                        # player has control by ~load+500 pads (l2s_x2 lvl_500)
+          mark spawn2                                          # second spawn area: temple wall left, jungle ahead
+# Pause menu (wc_x1): RESUME / SHOW OBJECTIVE / OPTIONS / QUIT GAME, RESUME selected -> Down x3 = QUIT GAME.
+pause:    press start
+          wait pads 30 timeout 6000vs
+          press down
+          wait pads 6 timeout 6000vs
+          press down
+          wait pads 6 timeout 6000vs
+          press down
+          wait pads 10 timeout 6000vs
+          mark quit_selected
+quitA:    press cross                                          # QUIT GAME -> confirm dialog (layout unknown)
+          wait pads 20 timeout 6000vs
+          mark confirm_dialog
+          press cross                                          # take the dialog's default choice
+          wait pads 40 timeout 3000vs else continue
+          mark a_after_default
+quitB:    press cross                                          # if back in the pause menu: QUIT GAME again
+          wait pads 20 timeout 3000vs else continue
+          mark b_dialog
+          press left
+          wait pads 10 timeout 3000vs else continue
+          mark b_left
+          press cross
+          wait pads 40 timeout 3000vs else continue
+          mark b_after_left
+quitC:    press cross
+          wait pads 20 timeout 3000vs else continue
+          mark c_dialog
+          press up
+          wait pads 10 timeout 3000vs else continue
+          mark c_up
+          press cross
+          wait pads 40 timeout 3000vs else continue
+          mark c_after_up
+unload:   wait vs 2 timeout 100vs else continue
+          mark after_quit
+          wait vs 900 timeout 4000vs else continue             # the teardown crash came ~170 vsyncs into the load
+          mark quit_load_900
+          wait pads 100 timeout 6000vs
+          mark quit_done
+          pass quit game explored

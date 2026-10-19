@@ -1,0 +1,77 @@
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# Reads the default gate (long wait), picks RESEARCH CENTER with 4 x left (antb_scout2: l4 = RESEARCH CENTER, 4-gate cycle),
+# enters, marks the warp-in every 50 pads, then calibrates the camera turn: right stick X=255 held continuously, mark every 4 pads.
+budget 1200s
+stall 900 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+boot: wait seen /FMV/NATTRACT.PSS timeout 4000vs
+      wait pads 4
+title: press start until pads 200 every 40 max 5
+       mark main_menu
+menu: press down
+      wait pads 20
+      press cross
+      wait pads 60 timeout 9000vs
+      mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs
+hub: wait pads 40 timeout 9000vs
+     mark hub_loaded
+     press cross
+     wait pads 100 timeout 9000vs
+     mark globe
+gate: press cross
+      wait pads 100 timeout 9000vs
+      mark gate_default
+pick: press left
+      wait pads 40 timeout 9000vs
+      mark gate_l1
+      press left
+      wait pads 40 timeout 9000vs
+      mark gate_l2
+      press left
+      wait pads 40 timeout 9000vs
+      mark gate_l3
+      press left
+      wait pads 40 timeout 9000vs
+      mark gate_l4
+enter: press cross until cd /SOUND/MUSIC/ANTA.MS every 30 max 3 timeout 6000vs
+       mark ant_load
+spawn: wait pads 200 timeout 20000vs
+       mark sp200
+       wait pads 50 timeout 20000vs
+       mark sp250
+       wait pads 50 timeout 20000vs
+       mark sp300
+       wait pads 50 timeout 20000vs
+       mark sp350
+       wait pads 50 timeout 20000vs
+       mark sp400
+       wait pads 100 timeout 20000vs
+       mark sp500
+turn: stick 128 128 255 128
+      wait pads 4 timeout 20000vs
+      mark t04
+      wait pads 4 timeout 20000vs
+      mark t08
+      wait pads 4 timeout 20000vs
+      mark t12
+      wait pads 4 timeout 20000vs
+      mark t16
+      wait pads 4 timeout 20000vs
+      mark t20
+      wait pads 4 timeout 20000vs
+      mark t24
+      wait pads 4 timeout 20000vs
+      mark t28
+      wait pads 4 timeout 20000vs
+      mark t32
+      wait pads 8 timeout 20000vs
+      mark t40
+      wait pads 8 timeout 20000vs
+      mark t48
+      stick none
+      wait pads 30 timeout 20000vs
+      mark t48_settled
+      pass research scout 1 complete

@@ -1,0 +1,10 @@
+# Cold boot and untouched attract playback; no save files.
+budget off
+stall 600 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps off
+boot: wait seen /FMV/NATTRACT.PSS timeout 4000vs
+      wait pads 1000 timeout 8000vs
+      mark attract_complete
+      pass untouched attract playback complete

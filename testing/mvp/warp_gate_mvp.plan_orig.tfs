@@ -1,0 +1,47 @@
+# warp_gate_mvp.tfs -- PS2X_SCRIPT (MVP grammar, see ../PLAN.md section 3.3) for Transformers SLUS_206.68.
+# Route (FRESH memory card): boot -> skip attract CG -> title -> New Game -> slot 1 (Empty) -> Difficulty ->
+# skip story intro -> hub ("Choose an Autobot") -> Left x2 = "View Mission Sites" -> X -> globe + N01AMA.M2V preview
+# -> X -> warp gate -> X "Enter Warp Gate" -> level data streams  => PASS (exit 0).
+#
+# Expected verdict on the 2026-10-08 09:xx build: STALL (exit 2) at step 'enter' (EE spins in 0x26EEC0 / 0x25D990
+# Scripted route checkpoint.
+# Scripted route checkpoint.
+#
+# Units: "pads" = the game's scePadRead calls on port 0 = game frames (~0.5 per vsync when healthy, ~1 per 180 vsyncs
+# while the frame loop runs on its 3 s watchdog). Timeouts are in vsyncs/pads so verdicts never depend on host speed;
+# 'budget' is only a wall-clock safety net.
+# Scripted route checkpoint.
+# presses: attract skip 8 vs after that read, title START ~120 vs later, menu X every 30-80 vs, NINTRO read 13 vs after
+# Scripted route checkpoint.
+
+budget 900s
+stall 600 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+
+boot:     wait seen /FMV/NATTRACT.PSS timeout 4000vs           # notices (fixed 1248 vs) + 2 logos, untouched
+          wait pads 4
+title:    press start until pads 160 every 40 max 4            # START#1 skips the CG, #2 title -> main menu;
+          mark main_menu                                       # Scripted route checkpoint.
+menus:    press cross until cd /FMV/NINTRO.PSS every 40 max 6 timeout 2000vs   # New Game -> slot 1 -> Difficulty -> intro
+          wait pads 40                                         # Scripted route checkpoint.
+intro:    press start until cd /TFA2.ZIP every 40 max 10 timeout 3000vs        # skip intro -> hub load starts
+hubload:  wait seen /SOUND/MUSIC/UI_MAIN.MS timeout 1500vs      # hub music = hub up
+          wait pads 40                                         # camera/fade settles (~20 s wall at ~4 vs/s)
+          mark hub_choose_autobot
+hubnav:   press left                                           # -> "Adjust Game Options"
+          wait pads 20
+          mark hub_adjust_options
+          press left                                           # Scripted route checkpoint.
+          wait pads 20
+          mark hub_view_mission_sites
+missions: press cross until cd /FMV/LEVELS/N01AMA.M2V every 60 max 2 timeout 1500vs   # globe + preview movie
+          wait pads 4                                          # today: 3 s watchdog mode, ~180 vs per pad read
+          mark globe
+globe:    press cross hold=2 gap=4                             # -> warp gate (works even on the black globe)
+          wait pads 30
+          mark warp_gate
+enter:    press cross until cd /TFA.ZIP@1940-44053 or cd /SOUND/MUSIC/AMAZON.MS every 30 max 3 timeout 3000vs
+          mark level_load                                      # 01_AMAZON_1 data inside TFA.ZIP / level music
+          pass level load started after Enter Warp Gate

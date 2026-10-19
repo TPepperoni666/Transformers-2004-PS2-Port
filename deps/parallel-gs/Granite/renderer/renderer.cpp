@@ -1,0 +1,1326 @@
+/* Copyright (c) 2017-2026 Hans-Kristian Arntzen
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining
+ * a copy of this software and associated documentation files (the
+ * "Software"), to deal in the Software without restriction, including
+ * without limitation the rights to use, copy, modify, merge, publish,
+ * distribute, sublicense, and/or sell copies of the Software, and to
+ * permit persons to whom the Software is furnished to do so, subject to
+ * the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+ * CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+ * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
+
+#define NOMINMAX
+#include "renderer.hpp"
+#include "device.hpp"
+#include "render_context.hpp"
+#include "sprite.hpp"
+#include "lights/clusterer.hpp"
+#include "lights/volumetric_fog.hpp"
+#include "lights/volumetric_diffuse.hpp"
+#include "render_parameters.hpp"
+#include "global_managers.hpp"
+#include "common_renderer_data.hpp"
+#include "rapidjson_wrapper.hpp"
+#include <string.h>
+
+using namespace Vulkan;
+using namespace Util;
+
+enum GlobalDescriptorSetBindings
+{
+	BINDING_GLOBAL_TRANSFORM = 0,
+	BINDING_GLOBAL_RENDER_PARAMETERS = 1,
+
+	BINDING_GLOBAL_VOLUMETRIC_DIFFUSE_PARAMETERS = 2,
+	BINDING_GLOBAL_VOLUMETRIC_FOG_PARAMETERS = 3,
+
+	BINDING_GLOBAL_BRDF_TABLE = 4,
+	BINDING_GLOBAL_DIRECTIONAL_SHADOW = 5,
+	BINDING_GLOBAL_AMBIENT_OCCLUSION = 6,
+	BINDING_GLOBAL_VOLUMETRIC_FOG = 7,
+
+	BINDING_GLOBAL_CLUSTERER_PARAMETERS = 8,
+	BINDING_GLOBAL_CLUSTER_TRANSFORM = 9,
+	BINDING_GLOBAL_CLUSTER_BITMASK = 10,
+	BINDING_GLOBAL_CLUSTER_RANGE = 11,
+	BINDING_GLOBAL_CLUSTER_BITMASK_DECAL = 12,
+	BINDING_GLOBAL_CLUSTER_RANGE_DECAL = 13,
+
+	BINDING_GLOBAL_LINEAR_SAMPLER = 14,
+	BINDING_GLOBAL_SHADOW_SAMPLER = 15,
+	BINDING_GLOBAL_GEOMETRY_SAMPLER_WRAP = 16,
+	BINDING_GLOBAL_GEOMETRY_SAMPLER_CLAMP = 17,
+
+	BINDING_GLOBAL_VOLUMETRIC_DIFFUSE_FALLBACK_VOLUME = 18,
+
+	BINDING_GLOBAL_SCENE_NODE_TRANSFORMS = 19,
+	BINDING_GLOBAL_SCENE_NODE_AABBS = 20,
+	BINDING_GLOBAL_SCENE_OCCLUSION_STATE = 21,
+	BINDING_GLOBAL_SCENE_TASK_BUFFER = 22,
+	BINDING_GLOBAL_SCENE_MESHLET_HEADER_BUFFER = 23,
+	BINDING_GLOBAL_SCENE_MESHLET_STREAM_HEADER_BUFFER = 24,
+	BINDING_GLOBAL_SCENE_MESHLET_PAYLOAD_BUFFER = 25,
+	BINDING_GLOBAL_SCENE_MESHLET_CLUSTER_BOUNDS = 26,
+	BINDING_GLOBAL_SCENE_MESHLET_HIZ = 27,
+	BINDING_GLOBAL_SCENE_NODE_PREV_TRANSFORMS = 28,
+};
+
+namespace Granite
+{
+void RendererSuite::set_renderer(Type type, RendererHandle handle)
+{
+	handles[Util::ecast(type)] = std::move(handle);
+}
+
+Renderer &RendererSuite::get_renderer(Type type)
+{
+	return *handles[Util::ecast(type)];
+}
+
+const Renderer &RendererSuite::get_renderer(Type type) const
+{
+	return *handles[Util::ecast(type)];
+}
+
+void RendererSuite::promote_read_write_cache_to_read_only()
+{
+	for (auto &renderer : handles)
+		if (renderer)
+			renderer->promote_read_write_cache_to_read_only();
+}
+
+void RendererSuite::set_default_renderers()
+{
+	set_renderer(Type::ForwardOpaque, Util::make_handle<Renderer>(RendererType::GeneralForward, nullptr));
+	set_renderer(Type::ForwardTransparent, Util::make_handle<Renderer>(RendererType::GeneralForward, nullptr));
+	set_renderer(Type::ShadowDepthPositionalPCF, Util::make_handle<Renderer>(RendererType::DepthOnly, nullptr));
+	set_renderer(Type::ShadowDepthDirectionalPCF, Util::make_handle<Renderer>(RendererType::DepthOnly, nullptr));
+	set_renderer(Type::ShadowDepthDirectionalFallbackPCF, Util::make_handle<Renderer>(RendererType::DepthOnly, nullptr));
+	set_renderer(Type::ShadowDepthDirectionalVSM, Util::make_handle<Renderer>(RendererType::DepthOnly, nullptr));
+	set_renderer(Type::ShadowDepthPositionalVSM, Util::make_handle<Renderer>(RendererType::DepthOnly, nullptr));
+	set_renderer(Type::PrepassDepth, Util::make_handle<Renderer>(RendererType::DepthOnly, nullptr));
+	set_renderer(Type::MotionVector, Util::make_handle<Renderer>(RendererType::MotionVector, nullptr));
+	set_renderer(Type::Deferred, Util::make_handle<Renderer>(RendererType::GeneralDeferred, nullptr));
+}
+
+void RendererSuite::update_mesh_rendering_options(const RenderContext &context, const Config &config)
+{
+	get_renderer(Type::ShadowDepthDirectionalPCF).set_mesh_renderer_options(0);
+	get_renderer(Type::ShadowDepthDirectionalFallbackPCF).set_mesh_renderer_options(0);
+	get_renderer(Type::ShadowDepthPositionalPCF).set_mesh_renderer_options(0);
+	get_renderer(Type::ShadowDepthDirectionalVSM).set_mesh_renderer_options(Renderer::SHADOW_VSM_BIT);
+	get_renderer(Type::ShadowDepthPositionalVSM).set_mesh_renderer_options(
+			Renderer::POSITIONAL_LIGHT_SHADOW_VSM_BIT);
+	get_renderer(Type::PrepassDepth).set_mesh_renderer_options(0);
+	get_renderer(Type::MotionVector).set_mesh_renderer_options(0);
+
+	Renderer::RendererOptionFlags pcf_flags = 0;
+	if (config.pcf_wide)
+		pcf_flags |= Renderer::SHADOW_PCF_KERNEL_WIDE_BIT;
+
+	auto opts = Renderer::get_mesh_renderer_options_from_lighting(*context.get_lighting_parameters());
+
+	Util::Hasher h;
+	h.u32(opts);
+	h.u32(uint32_t(config.pcf_wide));
+	h.u32(uint32_t(config.directional_light_vsm));
+	h.u32(uint32_t(config.forward_z_prepass));
+	h.u32(uint32_t(config.cascaded_directional_shadows));
+	Util::Hash config_hash = h.get();
+
+	get_renderer(Type::Deferred).set_mesh_renderer_options(pcf_flags | (opts & Renderer::POSITIONAL_DECALS_BIT));
+	get_renderer(Type::ForwardOpaque).set_mesh_renderer_options(
+			opts | pcf_flags | (config.forward_z_prepass ? Renderer::ALPHA_TEST_DISABLE_BIT : 0));
+	opts &= ~Renderer::AMBIENT_OCCLUSION_BIT;
+	get_renderer(Type::ForwardTransparent).set_mesh_renderer_options(opts | pcf_flags);
+
+	if (config_hash != current_config_hash)
+	{
+		register_variants_from_cache();
+		current_config_hash = config_hash;
+		promote_read_write_cache_to_read_only();
+	}
+}
+
+bool RendererSuite::load_variant_cache(const std::string &path)
+{
+	using namespace rapidjson;
+	std::string json;
+
+	if (!GRANITE_FILESYSTEM()->read_file_to_string(path, json))
+		return false;
+
+	Document doc;
+	doc.Parse(json);
+	if (doc.HasParseError())
+	{
+		LOGE("Failed to parse variant cache format!\n");
+		return false;
+	}
+
+	if (!doc.HasMember("rendererSuiteCacheVersion"))
+	{
+		LOGE("Could not find rendererSuiteCacheVersion member.\n");
+		return false;
+	}
+
+	unsigned version = doc["rendererSuiteCacheVersion"].GetUint();
+	if (version != CacheVersion)
+	{
+		LOGW("Mismatch in renderer suite cache version, %u != %u.\n", version, CacheVersion);
+		return false;
+	}
+
+	auto &maps = doc["variants"];
+	for (auto itr = maps.Begin(); itr != maps.End(); ++itr)
+	{
+		auto &value = *itr;
+		Variant variant = {};
+		variant.renderer_suite_type = static_cast<RendererSuite::Type>(value["rendererSuiteType"].GetUint());
+		variant.renderable_type = static_cast<RenderableType>(value["renderableType"].GetUint());
+		variant.key.word = value["word"].GetUint();
+		variants.push_back(variant);
+	}
+
+	LOGI("Loaded variant cache from %s.\n", path.c_str());
+	return true;
+}
+
+bool RendererSuite::save_variant_cache(const std::string &path)
+{
+	using namespace rapidjson;
+	Document doc;
+	doc.SetObject();
+	auto &allocator = doc.GetAllocator();
+
+	doc.AddMember("rendererSuiteCacheVersion", uint32_t(CacheVersion), allocator);
+
+	Value variants_array(kArrayType);
+
+	for (int suite_type = 0; suite_type < Util::ecast(RendererSuite::Type::Count); suite_type++)
+	{
+		for (int renderable_type = 0; renderable_type < Util::ecast(RenderableType::Count); renderable_type++)
+		{
+			auto &suite = handles[suite_type]->get_shader_suites()[renderable_type];
+			auto &signatures = suite.get_variant_signatures().get_thread_unsafe();
+			for (auto &key : signatures)
+			{
+				Value variant(kObjectType);
+				variant.AddMember("rendererSuiteType", suite_type, allocator);
+				variant.AddMember("renderableType", renderable_type, allocator);
+				variant.AddMember("word", key.key.word, allocator);
+				variants_array.PushBack(variant, allocator);
+			}
+		}
+	}
+
+	doc.AddMember("variants", variants_array, allocator);
+
+	StringBuffer buffer;
+	Writer<StringBuffer> writer(buffer);
+	doc.Accept(writer);
+
+	auto file = GRANITE_FILESYSTEM()->open_transactional_mapping(path, buffer.GetSize());
+	if (!file)
+	{
+		LOGE("Failed to open %s for writing.\n", path.c_str());
+		return false;
+	}
+
+	memcpy(file->mutable_data(), buffer.GetString(), buffer.GetSize());
+
+	LOGI("Saved variant cache to %s.\n", path.c_str());
+	return true;
+}
+
+void RendererSuite::register_variants_from_cache()
+{
+	if (variants.empty())
+		return;
+
+	GRANITE_SCOPED_TIMELINE_EVENT("renderer-suite-warm-variants");
+
+	for (auto &variant : variants)
+	{
+		auto *suites = handles[Util::ecast(variant.renderer_suite_type)]->get_shader_suites();
+		auto &suite = suites[Util::ecast(variant.renderable_type)];
+		suite.get_program(variant.key);
+	}
+
+	LOGI("Warmed cached variants.\n");
+}
+
+Renderer::Renderer(RendererType type_, const ShaderSuiteResolver *resolver_)
+	: type(type_), resolver(resolver_)
+{
+	EVENT_MANAGER_REGISTER_LATCH(Renderer, on_pipeline_created, on_pipeline_destroyed, DevicePipelineReadyEvent);
+
+	if (type == RendererType::GeneralDeferred || type == RendererType::GeneralForward)
+		set_mesh_renderer_options(SHADOW_CASCADE_ENABLE_BIT | SHADOW_ENABLE_BIT | FOG_ENABLE_BIT);
+	else
+		set_mesh_renderer_options(0);
+}
+
+ShaderSuite *Renderer::get_shader_suites()
+{
+	return suite;
+}
+
+static const char *renderer_to_define(RendererType type)
+{
+	switch (type)
+	{
+	case RendererType::GeneralForward:
+		return "RENDERER_FORWARD";
+
+	case RendererType::GeneralDeferred:
+		return "RENDERER_DEFERRED";
+
+	case RendererType::DepthOnly:
+		return "RENDERER_DEPTH";
+
+	case RendererType::MotionVector:
+		return "RENDERER_MOTION_VECTOR";
+
+	default:
+		break;
+	}
+
+	return "";
+}
+
+void Renderer::set_mesh_renderer_options_internal(RendererOptionFlags flags)
+{
+	auto global_defines = build_defines_from_renderer_options(type, flags);
+
+	auto &meshlet = suite[ecast(RenderableType::Meshlet)];
+	meshlet.get_base_defines() = global_defines;
+	meshlet.bake_base_defines();
+	auto &meshes = suite[ecast(RenderableType::LegacyMesh)];
+	meshes.get_base_defines() = global_defines;
+	meshes.bake_base_defines();
+	auto &probes = suite[ecast(RenderableType::DebugProbe)];
+	probes.get_base_defines() = global_defines;
+	probes.bake_base_defines();
+	auto &ground = suite[ecast(RenderableType::Ground)];
+	ground.get_base_defines() = global_defines;
+	ground.bake_base_defines();
+	auto &ocean = suite[ecast(RenderableType::Ocean)];
+	ocean.get_base_defines() = global_defines;
+	ocean.bake_base_defines();
+
+	// Skybox renderers only depend on VOLUMETRIC_FOG.
+	ShaderSuite *suites[] = {
+		&suite[ecast(RenderableType::Skybox)],
+		&suite[ecast(RenderableType::SkyCylinder)],
+	};
+
+	for (auto *shader_suite : suites)
+	{
+		shader_suite->get_base_defines().clear();
+		if (flags & VOLUMETRIC_FOG_ENABLE_BIT)
+			shader_suite->get_base_defines().emplace_back("VOLUMETRIC_FOG", 1);
+		shader_suite->get_base_defines().emplace_back(renderer_to_define(type), 1);
+		shader_suite->bake_base_defines();
+	}
+
+	renderer_options = flags;
+}
+
+Renderer::RendererOptionFlags Renderer::get_mesh_renderer_options() const
+{
+	return renderer_options;
+}
+
+void Renderer::set_mesh_renderer_options(RendererOptionFlags flags)
+{
+	if (renderer_options != flags)
+		set_mesh_renderer_options_internal(flags);
+}
+
+std::vector<std::pair<std::string, int>> Renderer::build_defines_from_renderer_options(
+	RendererType type, RendererOptionFlags flags)
+{
+	std::vector<std::pair<std::string, int>> global_defines;
+	if (flags & SHADOW_ENABLE_BIT)
+		global_defines.emplace_back("SHADOWS", 1);
+	if (flags & SHADOW_CASCADE_ENABLE_BIT)
+		global_defines.emplace_back("SHADOW_CASCADES", 1);
+	if (flags & VOLUMETRIC_DIFFUSE_ENABLE_BIT)
+		global_defines.emplace_back("VOLUMETRIC_DIFFUSE", 1);
+	if (flags & FOG_ENABLE_BIT)
+		global_defines.emplace_back("FOG", 1);
+	if (flags & VOLUMETRIC_FOG_ENABLE_BIT)
+		global_defines.emplace_back("VOLUMETRIC_FOG", 1);
+	if (flags & POSITIONAL_LIGHT_ENABLE_BIT)
+		global_defines.emplace_back("POSITIONAL_LIGHTS", 1);
+	if (flags & POSITIONAL_LIGHT_SHADOW_ENABLE_BIT)
+		global_defines.emplace_back("POSITIONAL_LIGHTS_SHADOW", 1);
+	if (flags & POSITIONAL_DECALS_BIT)
+		global_defines.emplace_back("CLUSTERER_DECALS", 1);
+
+	if (flags & SHADOW_VSM_BIT)
+		global_defines.emplace_back("DIRECTIONAL_SHADOW_VSM", 1);
+	if (flags & POSITIONAL_LIGHT_SHADOW_VSM_BIT)
+		global_defines.emplace_back("POSITIONAL_SHADOW_VSM", 1);
+	if (flags & (POSITIONAL_LIGHT_SHADOW_VSM_BIT | SHADOW_VSM_BIT))
+		global_defines.emplace_back("SHADOW_RESOLVE_VSM", 1);
+
+	if (flags & SHADOW_PCF_KERNEL_WIDE_BIT)
+		global_defines.emplace_back("SHADOW_MAP_PCF_KERNEL_WIDE", 1);
+
+	if (flags & ALPHA_TEST_DISABLE_BIT)
+		global_defines.emplace_back("ALPHA_TEST_DISABLE", 1);
+
+	if (flags & AMBIENT_OCCLUSION_BIT)
+		global_defines.emplace_back("AMBIENT_OCCLUSION", 1);
+
+	global_defines.emplace_back(renderer_to_define(type), 1);
+
+	return global_defines;
+}
+
+Renderer::RendererOptionFlags Renderer::get_mesh_renderer_options_from_lighting(const LightingParameters &lighting)
+{
+	uint32_t flags = 0;
+
+	if (lighting.shadows)
+	{
+		flags |= SHADOW_ENABLE_BIT;
+		if (!Vulkan::format_has_depth_or_stencil_aspect(lighting.shadows->get_format()))
+			flags |= SHADOW_VSM_BIT;
+		if (lighting.shadows->get_create_info().layers > 1)
+			flags |= SHADOW_CASCADE_ENABLE_BIT;
+	}
+
+	if (lighting.volumetric_fog)
+		flags |= VOLUMETRIC_FOG_ENABLE_BIT;
+	else if (lighting.fog.falloff > 0.0f)
+		flags |= FOG_ENABLE_BIT;
+
+	if (lighting.cluster)
+	{
+		flags |= POSITIONAL_LIGHT_ENABLE_BIT;
+
+		if (lighting.cluster->get_cluster_bindless_set())
+		{
+			flags |= POSITIONAL_LIGHT_SHADOW_ENABLE_BIT;
+			if (lighting.cluster->get_shadow_type() == LightClusterer::ShadowType::VSM)
+				flags |= POSITIONAL_LIGHT_SHADOW_VSM_BIT;
+		}
+
+		if (lighting.cluster->clusterer_has_volumetric_decals())
+			flags |= POSITIONAL_DECALS_BIT;
+
+		if (lighting.cluster->clusterer_has_volumetric_diffuse())
+			flags |= VOLUMETRIC_DIFFUSE_ENABLE_BIT;
+	}
+
+	if (lighting.ambient_occlusion)
+		flags |= AMBIENT_OCCLUSION_BIT;
+
+	return flags;
+}
+
+void Renderer::set_mesh_renderer_options_from_lighting(const LightingParameters &lighting)
+{
+	auto flags = get_mesh_renderer_options_from_lighting(lighting);
+	set_mesh_renderer_options(flags);
+}
+
+void Renderer::setup_shader_suite(Device &device_, RendererType renderer_type)
+{
+	ShaderSuiteResolver default_resolver;
+	auto *res = resolver ? resolver : &default_resolver;
+	for (int i = 0; i < ecast(RenderableType::Count); i++)
+		res->init_shader_suite(device_, suite[i], renderer_type, static_cast<RenderableType>(i));
+}
+
+void Renderer::on_pipeline_created(const DevicePipelineReadyEvent &created)
+{
+	device = &created.get_device();
+
+	{
+		GRANITE_SCOPED_TIMELINE_EVENT("renderer-setup-suite");
+		setup_shader_suite(*device, type);
+	}
+
+	set_mesh_renderer_options_internal(renderer_options);
+	for (auto &s : suite)
+		s.bake_base_defines();
+}
+
+void Renderer::on_pipeline_destroyed(const DevicePipelineReadyEvent &)
+{
+	device = nullptr;
+}
+
+void Renderer::begin(RenderQueue &queue) const
+{
+	queue.reset();
+	queue.set_shader_suites(suite);
+	queue.set_device(device);
+}
+
+static void set_cluster_parameters_bindless(Vulkan::CommandBuffer &cmd, const LightClusterer &cluster)
+{
+	*cmd.allocate_typed_constant_data<ClustererParametersBindless>(0, BINDING_GLOBAL_CLUSTERER_PARAMETERS, 1) = cluster.get_cluster_parameters_bindless();
+	cmd.set_storage_buffer(0, BINDING_GLOBAL_CLUSTER_TRANSFORM, *cluster.get_cluster_transform_buffer());
+	cmd.set_storage_buffer(0, BINDING_GLOBAL_CLUSTER_BITMASK, *cluster.get_cluster_bitmask_buffer());
+	cmd.set_storage_buffer(0, BINDING_GLOBAL_CLUSTER_RANGE, *cluster.get_cluster_range_buffer());
+	if (cluster.clusterer_has_volumetric_decals())
+	{
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_CLUSTER_BITMASK_DECAL, *cluster.get_cluster_bitmask_decal_buffer());
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_CLUSTER_RANGE_DECAL, *cluster.get_cluster_range_decal_buffer());
+	}
+
+	if (cluster.get_cluster_bindless_set())
+	{
+		cmd.set_bindless(1, cluster.get_cluster_bindless_set());
+
+		if (cluster.clusterer_has_volumetric_diffuse())
+		{
+			size_t size = cluster.get_cluster_volumetric_diffuse_size();
+			void *parameters = cmd.allocate_constant_data(0, BINDING_GLOBAL_VOLUMETRIC_DIFFUSE_PARAMETERS, size);
+			memcpy(parameters, &cluster.get_cluster_volumetric_diffuse_data(), size);
+		}
+
+		if (cluster.clusterer_has_volumetric_fog())
+		{
+			size_t size = cluster.get_cluster_volumetric_fog_size();
+			void *parameters = cmd.allocate_constant_data(0, BINDING_GLOBAL_VOLUMETRIC_FOG_PARAMETERS, size);
+			memcpy(parameters, &cluster.get_cluster_volumetric_fog_data(), size);
+		}
+	}
+}
+
+void Renderer::bind_scene_transform_parameters(Vulkan::CommandBuffer &cmd, const RenderContext &context)
+{
+	auto *transforms = context.get_scene_transform_parameters();
+	if (!transforms)
+		return;
+
+	auto transform_index = context.get_scene_transform_parameter_index();
+
+	if (auto *buf = transforms->get_transforms())
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_NODE_TRANSFORMS, *buf);
+	if (auto *buf = transforms->get_prev_transforms())
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_NODE_PREV_TRANSFORMS, *buf);
+	if (auto *buf = transforms->get_aabbs())
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_NODE_AABBS, *buf);
+	if (auto *buf = transforms->get_scene_task_buffer())
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_TASK_BUFFER, *buf);
+	if (auto *buf = cmd.get_device().get_resource_manager().get_meshlet_header_buffer())
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_MESHLET_HEADER_BUFFER, *buf);
+	if (auto *buf = cmd.get_device().get_resource_manager().get_meshlet_stream_header_buffer())
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_MESHLET_STREAM_HEADER_BUFFER, *buf);
+	if (auto *buf = cmd.get_device().get_resource_manager().get_meshlet_payload_buffer())
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_MESHLET_PAYLOAD_BUFFER, *buf);
+	if (auto *buf = cmd.get_device().get_resource_manager().get_cluster_bounds_buffer())
+		cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_MESHLET_CLUSTER_BOUNDS, *buf);
+	if (auto *view = context.get_scene_hiz_view())
+		cmd.set_texture(0, BINDING_GLOBAL_SCENE_MESHLET_HIZ, *view);
+
+	if (transform_index != UINT32_MAX)
+		if (auto *buf = transforms->get_occlusion_state(transform_index))
+			cmd.set_storage_buffer(0, BINDING_GLOBAL_SCENE_OCCLUSION_STATE, *buf);
+}
+
+void Renderer::bind_meshlet_culling_ubo(
+	Vulkan::CommandBuffer &cmd, unsigned desc_set, unsigned binding, const RenderContext &context,
+	const VkViewport &viewport, bool cw)
+{
+	auto *ubo = cmd.allocate_typed_constant_data<MeshletViewportUBO>(desc_set, binding, 1);
+	ubo->viewport = vec4(viewport.x + 0.5f * viewport.width - 0.5f,
+					viewport.y + 0.5f * viewport.height - 0.5f,
+					0.5f * viewport.width, 0.5f * viewport.height);
+	ubo->winding = cw ? -1.0f : 1.0f;
+
+	memcpy(ubo->planes, context.get_visibility_frustum().get_planes(), sizeof(ubo->planes));
+	ubo->view = context.get_render_parameters().view;
+
+	vec2 viewport_half = 0.5f * vec2(viewport.width, viewport.height);
+	vec4 viewport_scale_bias = viewport_half.xyxy();
+
+	viewport_scale_bias.z +=
+			viewport_scale_bias.x * context.get_render_parameters().projection[3].x;
+	viewport_scale_bias.w +=
+			viewport_scale_bias.y * context.get_render_parameters().projection[3].y;
+
+	viewport_scale_bias.x *= context.get_render_parameters().projection[0].x;
+	viewport_scale_bias.y *= -context.get_render_parameters().projection[1].y;
+	ubo->viewport_scale_bias = viewport_scale_bias;
+
+	if (const auto *hiz = context.get_scene_hiz_view())
+	{
+		ubo->hiz_resolution.x = hiz->get_view_width() << context.get_scene_hiz_min_lod();
+		ubo->hiz_resolution.y = hiz->get_view_height() << context.get_scene_hiz_min_lod();
+		ubo->hiz_min_lod = context.get_scene_hiz_min_lod();
+		ubo->hiz_max_lod = (hiz->get_create_info().levels - 1) + context.get_scene_hiz_min_lod();
+	}
+}
+
+void Renderer::bind_lighting_parameters(Vulkan::CommandBuffer &cmd, const RenderContext &context)
+{
+	auto *lighting = context.get_lighting_parameters();
+	if (!lighting)
+		return;
+
+	auto *combined = cmd.allocate_typed_constant_data<CombinedRenderParameters>(0, BINDING_GLOBAL_RENDER_PARAMETERS, 1);
+	memset(combined, 0, sizeof(*combined));
+
+	cmd.set_sampler(0, BINDING_GLOBAL_LINEAR_SAMPLER, StockSampler::LinearClamp);
+	cmd.set_sampler(0, BINDING_GLOBAL_SHADOW_SAMPLER, StockSampler::LinearShadow);
+
+	if (lighting->volumetric_fog)
+	{
+		cmd.set_texture(0, BINDING_GLOBAL_VOLUMETRIC_FOG, lighting->volumetric_fog->get_view(), StockSampler::LinearClamp);
+		combined->volumetric_fog.slice_z_log2_scale = lighting->volumetric_fog->get_slice_z_log2_scale();
+	}
+	else
+		combined->fog = lighting->fog;
+
+	combined->shadow = lighting->shadow;
+	combined->directional = lighting->directional;
+
+	combined->resolution.resolution = vec2(cmd.get_viewport().width, cmd.get_viewport().height);
+	combined->resolution.inv_resolution = vec2(1.0f / cmd.get_viewport().width, 1.0f / cmd.get_viewport().height);
+
+	auto *brdf = cmd.get_device().get_resource_manager().get_image_view_blocking(GRANITE_COMMON_RENDERER_DATA()->brdf_tables);
+	VK_ASSERT(brdf);
+	cmd.set_texture(0, BINDING_GLOBAL_BRDF_TABLE, *brdf, Vulkan::StockSampler::LinearClamp);
+
+	if (lighting->shadows != nullptr)
+	{
+		auto sampler = format_has_depth_or_stencil_aspect(lighting->shadows->get_format()) ? StockSampler::LinearShadow
+		                                                                                   : StockSampler::LinearClamp;
+		cmd.set_texture(0, BINDING_GLOBAL_DIRECTIONAL_SHADOW, *lighting->shadows, sampler);
+	}
+
+	if (lighting->ambient_occlusion)
+		cmd.set_texture(0, BINDING_GLOBAL_AMBIENT_OCCLUSION, *lighting->ambient_occlusion, StockSampler::LinearClamp);
+
+	if (lighting->cluster && lighting->cluster->get_cluster_bitmask_buffer())
+		set_cluster_parameters_bindless(cmd, *lighting->cluster);
+
+	if (lighting->volumetric_diffuse)
+	{
+		cmd.set_buffer_view(0, BINDING_GLOBAL_VOLUMETRIC_DIFFUSE_FALLBACK_VOLUME,
+							lighting->volumetric_diffuse->get_fallback_volume_view());
+	}
+}
+
+void Renderer::bind_global_parameters(Vulkan::CommandBuffer &cmd, const RenderContext &context)
+{
+	auto *global = cmd.allocate_typed_constant_data<RenderParameters>(0, BINDING_GLOBAL_TRANSFORM, 1);
+	*global = context.get_render_parameters();
+
+	cmd.set_sampler(0, BINDING_GLOBAL_GEOMETRY_SAMPLER_WRAP, StockSampler::DefaultGeometryFilterWrap);
+	cmd.set_sampler(0, BINDING_GLOBAL_GEOMETRY_SAMPLER_CLAMP, StockSampler::DefaultGeometryFilterClamp);
+}
+
+void Renderer::set_render_context_parameter_binder(RenderContextParameterBinder *binder)
+{
+	render_context_parameter_binder = binder;
+}
+
+void Renderer::promote_read_write_cache_to_read_only()
+{
+	for (auto &s : suite)
+		s.promote_read_write_cache_to_read_only();
+}
+
+void Renderer::render_mesh_assets(Vulkan::CommandBuffer &cmd, const RenderContext &context,
+                                  DrawPipeline pipe, const FlushParameters *params,
+                                  RendererFlushFlags options, bool skinned) const
+{
+	auto &manager = device->get_resource_manager();
+	auto encoding = manager.get_mesh_encoding();
+
+	if (pipe == DrawPipeline::AlphaTest && (options & MESH_ASSET_IGNORE_ALPHA_TEST_BIT) != 0)
+		pipe = DrawPipeline::Opaque;
+
+	auto *transforms = context.get_scene_transform_parameters();
+	if (!transforms)
+		return;
+
+	auto *task_range_buffer = transforms->get_task_buffer();
+	if (!task_range_buffer)
+		return;
+
+	auto range = (options & MESH_ASSET_MOTION_VECTOR_BIT) != 0
+		             ? transforms->get_task_range_motion_vector(skinned)
+		             : transforms->get_task_range(pipe, skinned);
+	if (range.second == 0)
+		return;
+
+	GRANITE_MATERIAL_MANAGER()->set_bindless(cmd, 2);
+	GRANITE_MATERIAL_MANAGER()->set_material_payloads(cmd, 3, 1);
+
+	if (encoding == ResourceManager::MeshEncoding::Classic || encoding == ResourceManager::MeshEncoding::VBOAndIBOMDI)
+	{
+		auto *ibo = manager.get_index_buffer();
+		auto *pos = manager.get_position_buffer();
+		auto *attr = manager.get_attribute_buffer();
+
+		VkIndexType index_type;
+		if (encoding == ResourceManager::MeshEncoding::Classic)
+			index_type = VK_INDEX_TYPE_UINT32;
+		else if (device->get_device_features().vk14_features.indexTypeUint8)
+			index_type = VK_INDEX_TYPE_UINT8;
+		else
+			index_type = VK_INDEX_TYPE_UINT16;
+
+		cmd.set_index_buffer(*ibo, 0, index_type);
+
+		cmd.set_vertex_binding(0, *pos, 0, 12);
+		cmd.set_vertex_binding(1, *attr, 0, 16);
+		cmd.set_vertex_attrib(0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0);
+		cmd.set_vertex_attrib(1, 1, VK_FORMAT_A2B10G10R10_SNORM_PACK32, 0);
+		cmd.set_vertex_attrib(2, 1, VK_FORMAT_A2B10G10R10_SNORM_PACK32, 4);
+		cmd.set_vertex_attrib(3, 1, VK_FORMAT_R32G32_SFLOAT, 8);
+
+		if (skinned)
+		{
+			auto *skin = manager.get_skinning_buffer();
+			cmd.set_vertex_binding(2, *skin, 0, 8);
+			cmd.set_vertex_attrib(4, 2, VK_FORMAT_R8G8B8A8_UINT, 0);
+			cmd.set_vertex_attrib(5, 2, VK_FORMAT_R8G8B8A8_UNORM, 4);
+		}
+	}
+
+	uint32_t attribute_mask = 0;
+	uint32_t texture_mask = 0;
+
+	// Ubershader approach, assume everything can happen.
+	// We split skinned vs non-skinned since the complexity level is quite different.
+	attribute_mask |= MESH_ATTRIBUTE_POSITION_BIT | MESH_ATTRIBUTE_UV_BIT | MESH_ATTRIBUTE_NORMAL_BIT |
+					  MESH_ATTRIBUTE_TANGENT_BIT;
+	if (skinned)
+		attribute_mask |= MESH_ATTRIBUTE_BONE_INDEX_BIT | MESH_ATTRIBUTE_BONE_WEIGHTS_BIT;
+
+	texture_mask |= MATERIAL_TEXTURE_BASE_COLOR_BIT | MATERIAL_TEXTURE_METALLIC_ROUGHNESS_BIT |
+					MATERIAL_TEXTURE_NORMAL_BIT | MATERIAL_TEXTURE_OCCLUSION_BIT | MATERIAL_TEXTURE_EMISSIVE_BIT;
+
+	switch (encoding)
+	{
+		// TODO: Figure how we're going to do manual culling.
+	case ResourceManager::MeshEncoding::Classic:
+		break;
+
+	case ResourceManager::MeshEncoding::VBOAndIBOMDI:
+	{
+		auto key = VariantSignatureKey::build(pipe, attribute_mask, texture_mask);
+		auto *prog = suite[ecast(RenderableType::Meshlet)].get_program(key);
+		cmd.set_program(prog);
+
+		MDICall mdi;
+
+		uint32_t transform_index = context.get_scene_transform_parameter_index();
+		if (transform_index != RenderContext::InvalidSceneTransformIndex)
+		{
+			// For persistently registered render contexts, MDI space is allocated persistently.
+			SceneTransformManager::CullingPhase phase;
+			if (options & MESH_ASSET_MOTION_VECTOR_BIT)
+				phase = SceneTransformManager::CullingPhase::MotionVector;
+			else if (options & MESH_ASSET_PHASE_2_BIT)
+				phase = SceneTransformManager::CullingPhase::Second;
+			else
+				phase = SceneTransformManager::CullingPhase::First;
+
+			mdi = transforms->get_mdi_call_parameters(transform_index, phase, pipe, skinned);
+		}
+		else if (params)
+			mdi = params->get_mdi_call(pipe, skinned);
+		else
+			mdi = {};
+
+		if (mdi.indirect_buffer && mdi.indirect_count_max)
+		{
+			cmd.draw_indexed_multi_indirect(*mdi.indirect_buffer, mdi.indirect_offset,
+											mdi.indirect_count_max,
+											sizeof(VkDrawIndexedIndirectCommand),
+											*mdi.indirect_buffer, mdi.indirect_count_offset);
+		}
+
+		break;
+	}
+
+	case ResourceManager::MeshEncoding::MeshletDecoded:
+	case ResourceManager::MeshEncoding::MeshletEncoded:
+	{
+		uint32_t variant_id = 0;
+		if (manager.mesh_rendering_is_hierarchical_task())
+			variant_id |= 1u << 0;
+		if (manager.mesh_rendering_is_local_invocation_indexed())
+			variant_id |= 1u << 1;
+		if (manager.mesh_rendering_is_wave_culled() ||
+		    cmd.get_device().get_device_features().driver_id == VK_DRIVER_ID_AMD_PROPRIETARY ||
+		    cmd.get_device().get_device_features().driver_id == VK_DRIVER_ID_AMD_OPEN_SOURCE)
+		{
+			// AMD prop drivers don't expose task/mesh control even though it will work just fine as-is.
+			variant_id |= 1u << 2;
+		}
+
+		if ((options & MESH_ASSET_PHASE_1_BIT) != 0)
+			variant_id |= 1u << 3;
+		if ((options & MESH_ASSET_PHASE_2_BIT) != 0)
+			variant_id |= 1u << 4;
+		if ((options & MESH_ASSET_FORCE_ALL_VISIBLE_BIT) != 0)
+			variant_id |= 1u << 5;
+
+		auto key = VariantSignatureKey::build(pipe, attribute_mask, texture_mask, variant_id);
+		auto *prog = suite[ecast(RenderableType::Meshlet)].get_program(key);
+		cmd.set_program(prog);
+
+		bind_meshlet_culling_ubo(cmd, 3, 0, context, cmd.get_viewport(),
+		                         (options & FRONT_FACE_CLOCKWISE_BIT) != 0);
+
+		struct
+		{
+			uint32_t offset;
+			uint32_t count;
+		} push = {};
+
+		cmd.enable_subgroup_size_control(true, VK_SHADER_STAGE_MESH_BIT_EXT);
+		cmd.enable_subgroup_size_control(true, VK_SHADER_STAGE_TASK_BIT_EXT);
+
+		if (manager.mesh_rendering_is_wave_culled())
+			cmd.set_subgroup_size_log2(true, 5, 5, VK_SHADER_STAGE_MESH_BIT_EXT);
+		if (device->supports_subgroup_size_log2(true, 5, 5, VK_SHADER_STAGE_TASK_BIT_EXT))
+			cmd.set_subgroup_size_log2(true, 5, 5, VK_SHADER_STAGE_TASK_BIT_EXT);
+
+		cmd.set_specialization_constant_mask(3);
+		const bool is_ortho = context.get_render_parameters().projection[3].w == 1.0f;
+		cmd.set_specialization_constant(0, is_ortho);
+		cmd.set_specialization_constant(1, skinned);
+
+		uint32_t hierarchy_scale_log2 = device->get_resource_manager().mesh_rendering_is_hierarchical_task() ? 7 : 0;
+		uint32_t hierarchy_scale = 1u << hierarchy_scale_log2;
+
+		auto max_tasks_per_dispatch = device->get_device_features().mesh_shader_properties.maxTaskWorkGroupCount[0] * hierarchy_scale;
+		for (size_t i = 0; i < range.second; i += max_tasks_per_dispatch)
+		{
+			auto to_draw = std::min<size_t>(range.second - i, max_tasks_per_dispatch);
+			push.offset = range.first + uint32_t(i);
+			push.count = to_draw;
+			cmd.push_constants(&push, 0, sizeof(push));
+			cmd.draw_mesh_tasks((to_draw + hierarchy_scale - 1) >> hierarchy_scale_log2, 1, 1);
+		}
+
+		cmd.enable_subgroup_size_control(false, VK_SHADER_STAGE_MESH_BIT_EXT);
+		cmd.enable_subgroup_size_control(false, VK_SHADER_STAGE_TASK_BIT_EXT);
+		break;
+	}
+
+	default:
+		break;
+	}
+}
+
+void Renderer::flush_subset(Vulkan::CommandBuffer &cmd, const RenderQueue &queue, const RenderContext &context,
+                            RendererFlushFlags options, const FlushParameters *parameters, unsigned index, unsigned num_indices) const
+{
+	assert((options & SKIP_SORTING_BIT) != 0);
+
+	if (render_context_parameter_binder)
+	{
+		render_context_parameter_binder->bind_render_context_parameters(cmd, context, parameters);
+	}
+	else
+	{
+		bind_global_parameters(cmd, context);
+		bind_lighting_parameters(cmd, context);
+		bind_scene_transform_parameters(cmd, context);
+	}
+
+	cmd.set_opaque_state();
+
+	if (options & FRONT_FACE_CLOCKWISE_BIT)
+		cmd.set_front_face(VK_FRONT_FACE_CLOCKWISE);
+
+	if (options & NO_COLOR_BIT)
+		cmd.set_color_write_mask(0);
+
+	if (options & DEPTH_STENCIL_READ_ONLY_BIT)
+		cmd.set_depth_test(true, false);
+
+	if (options & DEPTH_BIAS_BIT)
+	{
+		cmd.set_depth_bias(true);
+		if (options & DEPTH_BIAS_MINIMAL_BIT)
+			cmd.set_depth_bias(-1.0f, -1.0f);
+		else
+			cmd.set_depth_bias(-4.0f, -3.0f);
+	}
+
+	if (options & DEPTH_TEST_EQUAL_BIT)
+		cmd.set_depth_compare(VK_COMPARE_OP_EQUAL);
+
+	CommandBufferSavedState state = {};
+	cmd.save_state(COMMAND_BUFFER_SAVED_SCISSOR_BIT | COMMAND_BUFFER_SAVED_VIEWPORT_BIT | COMMAND_BUFFER_SAVED_RENDER_STATE_BIT, state);
+
+	if ((options & (MESH_ASSET_OPAQUE_BIT | MESH_ASSET_MOTION_VECTOR_BIT)) != 0)
+	{
+		render_mesh_assets(cmd, context, DrawPipeline::Opaque, parameters, options, false);
+		render_mesh_assets(cmd, context, DrawPipeline::Opaque, parameters, options, true);
+	}
+
+	if ((options & MESH_ASSET_OPAQUE_BIT) != 0 && (options & MESH_ASSET_MOTION_VECTOR_BIT) == 0)
+	{
+		render_mesh_assets(cmd, context, DrawPipeline::AlphaTest, parameters, options, false);
+		render_mesh_assets(cmd, context, DrawPipeline::AlphaTest, parameters, options, true);
+	}
+
+	queue.dispatch_subset(Queue::Opaque, cmd, &state, index, num_indices);
+
+	if (type == RendererType::GeneralForward)
+	{
+		// Forward renderers can also render transparent objects.
+		cmd.restore_state(state);
+		cmd.set_blend_enable(true);
+		cmd.set_blend_factors(VK_BLEND_FACTOR_SRC_ALPHA, VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+		cmd.set_blend_op(VK_BLEND_OP_ADD);
+		cmd.set_depth_test(true, false);
+		cmd.save_state(COMMAND_BUFFER_SAVED_SCISSOR_BIT | COMMAND_BUFFER_SAVED_VIEWPORT_BIT | COMMAND_BUFFER_SAVED_RENDER_STATE_BIT, state);
+
+		if ((options & MESH_ASSET_TRANSPARENT_BIT) != 0)
+		{
+			render_mesh_assets(cmd, context, DrawPipeline::AlphaBlend, parameters, options, false);
+			render_mesh_assets(cmd, context, DrawPipeline::AlphaBlend, parameters, options, true);
+		}
+
+		queue.dispatch_subset(Queue::Transparent, cmd, &state, index, num_indices);
+	}
+}
+
+void Renderer::flush(Vulkan::CommandBuffer &cmd, RenderQueue &queue,
+                     const RenderContext &context, RendererFlushFlags options,
+                     const FlushParameters *params) const
+{
+	if ((options & SKIP_SORTING_BIT) == 0)
+		queue.sort();
+	flush_subset(cmd, queue, context, options | SKIP_SORTING_BIT, params, 0, 1);
+}
+
+void Renderer::flush(Vulkan::CommandBuffer &cmd, const RenderQueue &queue,
+                     const RenderContext &context, RendererFlushFlags options,
+                     const FlushParameters *params) const
+{
+	if ((options & SKIP_SORTING_BIT) == 0)
+		LOGE("SKIP_SORTING was not specified!\n");
+	flush_subset(cmd, queue, context, options | SKIP_SORTING_BIT, params, 0, 1);
+}
+
+DebugMeshInstanceInfo &Renderer::render_debug(RenderQueue &queue, const RenderContext &context, unsigned count)
+{
+	DebugMeshInfo debug;
+
+	auto *instance_data = queue.allocate_one<DebugMeshInstanceInfo>();
+	instance_data->count = count;
+	instance_data->colors = queue.allocate_many<vec4>(count);
+	instance_data->positions = queue.allocate_many<vec3>(count);
+
+	Hasher hasher;
+	hasher.string("debug");
+	auto instance_key = hasher.get();
+	auto sorting_key = RenderInfo::get_sort_key(context, Queue::Opaque, hasher.get(), hasher.get(), vec3(0.0f));
+	debug.MVP = context.get_render_parameters().view_projection;
+
+	auto *debug_info = queue.push<DebugMeshInfo>(Queue::Opaque, instance_key, sorting_key,
+	                                             RenderFunctions::debug_mesh_render,
+	                                             instance_data);
+
+	if (debug_info)
+	{
+		debug.program = suite[ecast(RenderableType::DebugMesh)].get_program(
+			VariantSignatureKey::build(DrawPipeline::Opaque,
+			                           MESH_ATTRIBUTE_POSITION_BIT |
+			                           MESH_ATTRIBUTE_VERTEX_COLOR_BIT, 0));
+		*debug_info = debug;
+	}
+
+	return *instance_data;
+}
+
+template <typename T>
+inline void dump_debug_coords(vec3 *pos, const T &t)
+{
+	*pos++ = t.get_coord(0.0f, 0.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 0.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 0.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 0.0f, 1.0f);
+	*pos++ = t.get_coord(1.0f, 0.0f, 1.0f);
+	*pos++ = t.get_coord(0.0f, 0.0f, 1.0f);
+	*pos++ = t.get_coord(0.0f, 0.0f, 1.0f);
+	*pos++ = t.get_coord(0.0f, 0.0f, 0.0f);
+
+	*pos++ = t.get_coord(0.0f, 1.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 1.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 1.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 1.0f, 1.0f);
+	*pos++ = t.get_coord(1.0f, 1.0f, 1.0f);
+	*pos++ = t.get_coord(0.0f, 1.0f, 1.0f);
+	*pos++ = t.get_coord(0.0f, 1.0f, 1.0f);
+	*pos++ = t.get_coord(0.0f, 1.0f, 0.0f);
+
+	*pos++ = t.get_coord(0.0f, 0.0f, 0.0f);
+	*pos++ = t.get_coord(0.0f, 1.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 0.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 1.0f, 0.0f);
+	*pos++ = t.get_coord(1.0f, 0.0f, 1.0f);
+	*pos++ = t.get_coord(1.0f, 1.0f, 1.0f);
+	*pos++ = t.get_coord(0.0f, 0.0f, 1.0f);
+	*pos++ = t.get_coord(0.0f, 1.0f, 1.0f);
+}
+
+void Renderer::render_debug_frustum(RenderQueue &queue, const RenderContext &context, const Frustum &frustum, const vec4 &color)
+{
+	auto &debug = render_debug(queue, context, 12 * 2);
+	for (unsigned i = 0; i < debug.count; i++)
+		debug.colors[i] = color;
+	dump_debug_coords(debug.positions, frustum);
+}
+
+void Renderer::render_debug_aabb(RenderQueue &queue, const RenderContext &context, const AABB &aabb, const vec4 &color)
+{
+	auto &debug = render_debug(queue, context, 12 * 2);
+	for (unsigned i = 0; i < debug.count; i++)
+		debug.colors[i] = color;
+	dump_debug_coords(debug.positions, aabb);
+}
+
+void DeferredLightRenderer::render_light(Vulkan::CommandBuffer &cmd, const RenderContext &context,
+                                         Renderer::RendererOptionFlags flags)
+{
+	cmd.set_quad_state();
+	cmd.set_input_attachments(3, 0);
+	cmd.set_blend_enable(true);
+	cmd.set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_ONE);
+	cmd.set_blend_op(VK_BLEND_OP_ADD);
+	CommandBufferUtil::set_fullscreen_quad_vertex_state(cmd);
+
+	cmd.set_sampler(0, BINDING_GLOBAL_LINEAR_SAMPLER, StockSampler::LinearClamp);
+	cmd.set_sampler(0, BINDING_GLOBAL_SHADOW_SAMPLER, StockSampler::LinearShadow);
+
+	auto &device = cmd.get_device();
+	auto *program = device.get_shader_manager().register_graphics("builtin://shaders/lights/directional.vert",
+	                                                              "builtin://shaders/lights/directional.frag");
+
+	auto &light = *context.get_lighting_parameters();
+	auto &vk11 = device.get_device_features().vk11_props;
+
+	std::vector<std::pair<std::string, int>> defines;
+	if (light.shadows && light.shadows->get_create_info().layers > 1)
+	{
+		defines.emplace_back("SHADOW_CASCADES", 1);
+		if ((vk11.subgroupSupportedOperations & VK_SUBGROUP_FEATURE_ARITHMETIC_BIT) != 0 &&
+		    (vk11.subgroupSupportedStages & VK_SHADER_STAGE_FRAGMENT_BIT) != 0 &&
+		    !ImplementationQuirks::get().force_no_subgroups)
+		{
+			// For cascaded shadows.
+			defines.emplace_back("SUBGROUP_OPS", 1);
+		}
+	}
+
+	if (light.shadows)
+	{
+		defines.emplace_back("SHADOWS", 1);
+		if (!format_has_depth_or_stencil_aspect(light.shadows->get_format()))
+			defines.emplace_back("DIRECTIONAL_SHADOW_VSM", 1);
+		else if (flags & Renderer::SHADOW_PCF_KERNEL_WIDE_BIT)
+			defines.emplace_back("SHADOW_MAP_PCF_KERNEL_WIDE", 1);
+	}
+
+	bool cluster_volumetric_diffuse = light.cluster && light.cluster->clusterer_has_volumetric_diffuse();
+	if (!cluster_volumetric_diffuse)
+	{
+		defines.emplace_back("VOLUMETRIC_DIFFUSE_FALLBACK", 1);
+		if (light.ambient_occlusion)
+			defines.emplace_back("AMBIENT_OCCLUSION", 1);
+	}
+
+	auto *variant = program->register_variant(defines);
+	cmd.set_program(variant->get_program());
+	cmd.set_depth_test(true, false);
+	cmd.set_depth_compare(VK_COMPARE_OP_NOT_EQUAL);
+
+	auto *brdf = device.get_resource_manager().get_image_view_blocking(GRANITE_COMMON_RENDERER_DATA()->brdf_tables);
+	VK_ASSERT(brdf);
+	cmd.set_texture(0, BINDING_GLOBAL_BRDF_TABLE, *brdf, Vulkan::StockSampler::LinearClamp);
+
+	if (light.shadows)
+	{
+		auto sampler = format_has_depth_or_stencil_aspect(light.shadows->get_format()) ? StockSampler::LinearShadow
+		                                                                               : StockSampler::LinearClamp;
+		cmd.set_texture(0, BINDING_GLOBAL_DIRECTIONAL_SHADOW, *light.shadows, sampler);
+	}
+
+	if (light.ambient_occlusion)
+		cmd.set_texture(0, BINDING_GLOBAL_AMBIENT_OCCLUSION, *light.ambient_occlusion, Vulkan::StockSampler::LinearClamp);
+
+	struct DirectionalLightPush
+	{
+		alignas(16) vec4 inv_view_proj_col2;
+		alignas(16) vec3 color;
+		alignas(16) vec3 camera_pos;
+		alignas(16) vec3 direction;
+		alignas(4) float cascade_log_bias;
+		alignas(16) vec3 camera_front;
+		alignas(8) vec2 inv_resolution;
+	} push;
+
+	struct DirectionalLightUBO
+	{
+		mat4 inv_view_projection;
+		mat4 transforms[NumShadowCascades];
+	};
+	auto *ubo = static_cast<DirectionalLightUBO *>(cmd.allocate_constant_data(0, 0, sizeof(DirectionalLightUBO)));
+	ubo->inv_view_projection = context.get_render_parameters().inv_view_projection;
+	for (int i = 0; i < NumShadowCascades; i++)
+		ubo->transforms[i] = light.shadow.transforms[i];
+
+	push.inv_view_proj_col2 = context.get_render_parameters().inv_view_projection[2];
+	push.color = light.directional.color;
+	push.direction = light.directional.direction;
+	push.cascade_log_bias = light.shadow.cascade_log_bias;
+
+	push.camera_pos = context.get_render_parameters().camera_position;
+	push.camera_front = context.get_render_parameters().camera_front;
+	push.inv_resolution.x = 1.0f / cmd.get_viewport().width;
+	push.inv_resolution.y = 1.0f / cmd.get_viewport().height;
+	cmd.push_constants(&push, 0, sizeof(push));
+
+	CommandBufferUtil::draw_fullscreen_quad(cmd);
+
+	// Clustered lighting.
+	if (light.cluster && light.cluster->get_cluster_bitmask_buffer())
+	{
+		struct ClusterPush
+		{
+			alignas(16) vec4 inv_view_proj_col2;
+			alignas(16) vec3 camera_pos;
+			alignas(8) vec2 inv_resolution;
+		};
+
+		ClusterPush cluster_push = {
+			context.get_render_parameters().inv_view_projection[2],
+			context.get_render_parameters().camera_position,
+			vec2(1.0f / cmd.get_viewport().width, 1.0f / cmd.get_viewport().height),
+		};
+
+		std::vector<std::pair<std::string, int>> cluster_defines;
+		if (light.cluster->get_cluster_bindless_set())
+		{
+			cluster_defines.emplace_back("POSITIONAL_LIGHTS_SHADOW", 1);
+			if (light.cluster->get_shadow_type() == LightClusterer::ShadowType::VSM)
+				cluster_defines.emplace_back("POSITIONAL_SHADOW_VSM", 1);
+			else if (flags & Renderer::SHADOW_PCF_KERNEL_WIDE_BIT)
+				cluster_defines.emplace_back("SHADOW_MAP_PCF_KERNEL_WIDE", 1);
+		}
+
+		if (light.cluster->get_cluster_bindless_set())
+		{
+			if (cluster_volumetric_diffuse)
+			{
+				cluster_defines.emplace_back("VOLUMETRIC_DIFFUSE", 1);
+				if (light.volumetric_diffuse)
+				{
+					cmd.set_buffer_view(0, BINDING_GLOBAL_VOLUMETRIC_DIFFUSE_FALLBACK_VOLUME,
+					                    light.volumetric_diffuse->get_fallback_volume_view());
+				}
+			}
+
+			if (light.ambient_occlusion)
+				cluster_defines.emplace_back("AMBIENT_OCCLUSION", 1);
+		}
+
+		cmd.set_program("builtin://shaders/lights/clustering.vert",
+		                "builtin://shaders/lights/clustering.frag",
+		                cluster_defines);
+
+		cmd.push_constants(&cluster_push, 0, sizeof(cluster_push));
+		set_cluster_parameters_bindless(cmd, *light.cluster);
+		CommandBufferUtil::draw_fullscreen_quad(cmd);
+	}
+
+	// Skip fog for non-reflection passes.
+	if (light.volumetric_fog != nullptr)
+	{
+		struct Fog
+		{
+			vec4 inv_z;
+			float slice_z_log2_scale;
+		} fog;
+
+		fog.inv_z = vec4(context.get_render_parameters().inv_projection[2].zw(),
+		                 context.get_render_parameters().inv_projection[3].zw());
+		fog.slice_z_log2_scale = light.volumetric_fog->get_slice_z_log2_scale();
+		cmd.push_constants(&fog, 0, sizeof(fog));
+
+		cmd.set_texture(2, 0, light.volumetric_fog->get_view(), StockSampler::LinearClamp);
+		cmd.set_program("builtin://shaders/lights/volumetric_fog.vert", "builtin://shaders/lights/volumetric_fog.frag");
+		cmd.set_blend_factors(VK_BLEND_FACTOR_ONE, VK_BLEND_FACTOR_SRC_ALPHA);
+		// Always render volumetric fog.
+		cmd.set_depth_test(false, false);
+		CommandBufferUtil::draw_fullscreen_quad(cmd);
+	}
+	else if (light.fog.falloff > 0.0f)
+	{
+		struct Fog
+		{
+			mat4 inv_view_proj;
+			vec4 camera_pos;
+			vec4 color_falloff;
+		} fog;
+
+		fog.inv_view_proj = context.get_render_parameters().inv_view_projection;
+		fog.camera_pos = vec4(context.get_render_parameters().camera_position, 0.0f);
+		fog.color_falloff = vec4(light.fog.color, light.fog.falloff);
+		cmd.push_constants(&fog, 0, sizeof(fog));
+
+		cmd.set_blend_factors(VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, VK_BLEND_FACTOR_SRC_ALPHA);
+		cmd.set_program("builtin://shaders/lights/fog.vert", "builtin://shaders/lights/fog.frag");
+		CommandBufferUtil::draw_fullscreen_quad(cmd);
+	}
+}
+
+void ShaderSuiteResolver::init_shader_suite(Device &device, ShaderSuite &suite,
+                                            RendererType renderer,
+                                            RenderableType drawable) const
+{
+	if (drawable == RenderableType::Meshlet &&
+	    (renderer == RendererType::GeneralDeferred || renderer == RendererType::GeneralForward ||
+	     renderer == RendererType::DepthOnly || renderer == RendererType::MotionVector))
+	{
+		switch (device.get_resource_manager().get_mesh_encoding())
+		{
+		case ResourceManager::MeshEncoding::Classic:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/meshlet_classic.vert",
+			                    "builtin://shaders/meshlet.frag");
+			break;
+		case ResourceManager::MeshEncoding::VBOAndIBOMDI:
+			if (renderer == RendererType::MotionVector)
+			{
+				suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/meshlet_mdi_mv.vert",
+				                    "builtin://shaders/static_mesh_mv.frag");
+			}
+			else
+			{
+				suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/meshlet_mdi.vert",
+				                    "builtin://shaders/meshlet.frag");
+			}
+			break;
+		case ResourceManager::MeshEncoding::MeshletDecoded:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/meshlet.task",
+			                    "builtin://shaders/meshlet_decoded.mesh", "builtin://shaders/meshlet.frag");
+			break;
+		case ResourceManager::MeshEncoding::MeshletEncoded:
+			if (renderer == RendererType::MotionVector)
+			{
+				suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/meshlet.task",
+				                    "builtin://shaders/meshlet_encoded_mv.mesh", "builtin://shaders/static_mesh_mv.frag");
+			}
+			else
+			{
+				suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/meshlet.task",
+				                    "builtin://shaders/meshlet_encoded.mesh", "builtin://shaders/meshlet.frag");
+			}
+			break;
+		}
+	}
+
+	if (renderer == RendererType::GeneralDeferred || renderer == RendererType::GeneralForward)
+	{
+		switch (drawable)
+		{
+		case RenderableType::LegacyMesh:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/static_mesh.vert", "builtin://shaders/static_mesh.frag");
+			break;
+
+		case RenderableType::DebugMesh:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/debug_mesh.vert", "builtin://shaders/debug_mesh.frag");
+			break;
+
+		case RenderableType::DebugProbe:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/debug_probe.vert", "builtin://shaders/debug_probe.frag");
+			break;
+
+		case RenderableType::Skybox:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/skybox.vert", "builtin://shaders/skybox.frag");
+			break;
+
+		case RenderableType::SkyCylinder:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/skycylinder.vert", "builtin://shaders/skycylinder.frag");
+			break;
+
+		case RenderableType::Ground:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/ground.vert", "builtin://shaders/ground.frag");
+			break;
+
+		case RenderableType::Ocean:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/ocean/ocean.vert", "builtin://shaders/ocean/ocean.frag");
+			break;
+
+		default:
+			break;
+		}
+	}
+	else if (renderer == RendererType::DepthOnly || renderer == RendererType::MotionVector)
+	{
+		switch (drawable)
+		{
+		case RenderableType::LegacyMesh:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/static_mesh.vert",
+			                    renderer == RendererType::DepthOnly ?
+			                    "builtin://shaders/static_mesh_depth.frag" :
+			                    "builtin://shaders/static_mesh_mv.frag");
+			break;
+
+		case RenderableType::Ground:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/ground.vert", "builtin://shaders/dummy_depth.frag");
+			break;
+
+		case RenderableType::Ocean:
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/ocean/ocean.vert", "builtin://shaders/dummy_depth.frag");
+			break;
+
+		default:
+			break;
+		}
+	}
+	else if (renderer == RendererType::Flat)
+	{
+		if (drawable == RenderableType::Sprite)
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/sprite.vert", "builtin://shaders/sprite.frag");
+		else if (drawable == RenderableType::LineUI)
+			suite.init_graphics(&device.get_shader_manager(), "builtin://shaders/line_ui.vert", "builtin://shaders/debug_mesh.frag");
+	}
+}
+
+bool FlushParameters::get_is_layered() const
+{
+	return false;
+}
+
+uint32_t FlushParameters::get_layer() const
+{
+	return 0;
+}
+
+MDICall FlushParameters::get_mdi_call(DrawPipeline, bool) const
+{
+	return {};
+}
+}

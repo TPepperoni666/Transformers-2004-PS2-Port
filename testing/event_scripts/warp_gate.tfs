@@ -1,0 +1,56 @@
+# warp_gate.tfs -- PS2X_SCRIPT for Transformers (SLUS_206.68): boot -> New Game (fresh card) -> hub ->
+# View Mission Sites -> globe + N01AMA.M2V preview -> warp gate -> "Enter Warp Gate".
+# PASS (exit 0)  = level data starts streaming after Enter Warp Gate.
+# Today expected = STALL (exit 11): EE spins in 0x26EEC0/0x25D990 (no INTC5) right after Enter.
+# Grammar: see ../event-scripts-early-exit-golden-card.md section 3.  Refs are full 640x446 frame dumps;
+# the region (x0,y0,x1,y1, 512x446 visible area) and threshold are given here.
+
+option timeout 900s                     # global wall budget                    -> exit 12 TIMEOUT
+option stall pads 600vs 10s             # no scePadRead for 600 vsyncs AND 10 s -> exit 11 STALL
+option watchdog warn 600vs 20           # <1 pad read per 20 vs over 600 vs = frame loop on its 3 s watchdog
+                                        # (healthy windows >=149 reads/600 vs in 13 runs; watchdog phases <=9.9)
+option press hold=4 gap=4 retry=60      # press = 4 pad reads down, 4 up; re-press after 60 reads w/o effect
+option focus 0,330,512,446              # prompt strip, used for 'changed' / settle detection
+option dump-on-step on                  # step_NN_<label>_vs<V>.png at each labelled step
+
+fail-on text "FATAL ERROR"   code=14    # game's own fatal dialog (TDG_PlatformSupport.cpp) printed to TTY
+fail-on crash                code=14    # guest missing-target (pc=0x25 style crash)
+fail-on mem32 0x6CF214 >= 8  code=10 "movie Nodata-after-finish counter climbing (fatal precursor)"
+
+ref title        refs/title.png         rgb   136,290,384,345  10
+ref main_menu    refs/main_menu.png     mask  160,272,352,376  0.45
+ref saved_games  refs/saved_games.png   mask  144,216,368,408  0.45
+ref difficulty   refs/difficulty.png    mask  160,264,352,376  0.45
+ref hub_autobot  refs/hub_autobot.png   mask  80,372,432,410   0.45
+ref hub_minicons refs/hub_minicons.png  mask  80,372,432,410   0.45
+ref hub_missions refs/hub_missions.png  mask  80,372,432,410   0.45
+ref hub_options  refs/hub_options.png   mask  80,372,432,410   0.45
+ref warp_gate    refs/warp_gate.png     mask  136,352,376,408  0.45
+
+boot:     wait frame nonblack > 100000 timeout 60s                  # autosave notice up (~vs 180)
+          press start until file /FMV/NATARI.PSS retry 60 max 3 timeout 240s else continue  # EXPERIMENT: are the notices skippable? (else ~115 s)
+          press start until file /FMV/NMH_LOGO.PSS max 2 retry 40   # try to skip publisher logo (harmless if not)
+          press start until file /FMV/NATTRACT.PSS max 2 retry 40
+attract:  wait movie start timeout 60s                               # first picture of the attract/opening CG
+          press start until screen title retry 40 timeout 90s       # Scripted route checkpoint.
+title:    press start until screen main_menu timeout 60s
+newgame:  press cross until screen saved_games timeout 60s          # cursor defaults to NEW GAME
+slot:     press cross until screen difficulty timeout 60s           # fresh card: slot 1 Empty -> no overwrite prompt
+diff:     press cross until file /FMV/NINTRO.PSS timeout 60s        # RECRUIT
+intro:    wait movie start timeout 60s
+          press start until file /TFA2.ZIP retry 40 timeout 60s     # skip story intro -> hub load
+hub:      wait screen hub_autobot timeout 180s                       # hub opens on "Choose an Autobot"
+          mark "hub reached"
+menus:    press left until screen hub_missions retry 40 max 4 timeout 240s   # -> Adjust Game Options -> View Mission Sites
+missions: press cross until file /FMV/LEVELS/N01AMA.M2V timeout 120s
+          set kicklog on                                             # VIF1 kick trace only while it matters
+          wait movie start or +vs 600 timeout 120s
+          dump frame globe
+          expect frame nonblack > 50000 within 30s else warn "preview movie black (VIF1 i-bit bug #1)"
+globe:    press cross until screen warp_gate retry 60 max 3 timeout 300s
+          set kicklog off
+          dump frame warp_gate
+enter:    press cross
+          wait file /TFA.ZIP@1940-44053 or file /SOUND/MUSIC/AMAZON.MS timeout 300s else fail "no level load after Enter Warp Gate"
+          dump frame level_load
+          pass "level load started after Enter Warp Gate"

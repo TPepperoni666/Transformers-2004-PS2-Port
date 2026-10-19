@@ -1,0 +1,64 @@
+#ifndef CLUSTERER_DATA_H_
+#define CLUSTERER_DATA_H_
+
+#include "../inc/affine.h"
+
+#define CLUSTERER_MAX_LIGHTS_GLOBAL 32
+#define CLUSTERER_MAX_LIGHTS 4096
+#define CLUSTERER_MAX_DECALS 4096
+
+struct PositionalLightInfo
+{
+	mediump vec3 color;
+	uint spot_scale_bias;
+	vec3 position;
+	uint offset_radius;
+	mediump vec3 direction;
+	mediump float inv_radius;
+};
+
+struct ClustererParametersBindless
+{
+	mat4 transform;
+	vec4 clip_scale;
+
+	vec3 camera_base;
+	vec3 camera_front;
+
+	vec2 xy_scale;
+	ivec2 resolution_xy;
+	vec2 inv_resolution_xy;
+
+	int num_lights;
+	int num_lights_32;
+	int num_decals;
+	int num_decals_32;
+	int decals_texture_offset;
+	int z_max_index;
+	float z_scale;
+};
+
+struct BindlessDecalTransform
+{
+	mat_affine world_to_texture;
+};
+
+struct ClustererBindlessTransforms
+{
+	PositionalLightInfo lights[CLUSTERER_MAX_LIGHTS];
+	mat4 shadow[CLUSTERER_MAX_LIGHTS];
+	mat_affine model[CLUSTERER_MAX_LIGHTS];
+	uint type_mask[CLUSTERER_MAX_LIGHTS / 32];
+	BindlessDecalTransform decals[CLUSTERER_MAX_DECALS];
+};
+
+struct ClustererGlobalTransforms
+{
+	PositionalLightInfo lights[CLUSTERER_MAX_LIGHTS_GLOBAL];
+	mat4 shadow[CLUSTERER_MAX_LIGHTS_GLOBAL];
+	uint type_mask;
+	int desc_offset;
+	int num_lights;
+};
+
+#endif

@@ -1,0 +1,45 @@
+# Scripted route checkpoint.
+# Learns the default gate + the left/right order of the Antarctica warp gates. Not a test route.
+budget 1200s
+stall 900 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+boot: wait seen /FMV/NATTRACT.PSS timeout 4000vs
+      wait pads 4
+title: press start until pads 200 every 40 max 5
+       mark main_menu
+menu: press down
+      wait pads 20
+      mark main_continue
+      press cross
+      wait pads 60 timeout 9000vs
+      mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs
+hub: wait pads 40 timeout 9000vs
+     mark hub_loaded
+     press cross
+     wait pads 100 timeout 9000vs
+     mark globe
+gate: press cross
+      wait pads 40 timeout 9000vs
+      mark gate_default
+scan: press left
+      wait pads 40 timeout 9000vs
+      mark gate_l1
+      press left
+      wait pads 40 timeout 9000vs
+      mark gate_l2
+      press left
+      wait pads 40 timeout 9000vs
+      mark gate_l3
+      press left
+      wait pads 40 timeout 9000vs
+      mark gate_l4
+      press left
+      wait pads 40 timeout 9000vs
+      mark gate_l5
+      press left
+      wait pads 40 timeout 9000vs
+      mark gate_l6
+      pass gate scout complete

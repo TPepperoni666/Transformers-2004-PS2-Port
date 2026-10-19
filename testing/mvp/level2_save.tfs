@@ -1,0 +1,52 @@
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# the Ruined Temple Warp Gate; the Saved Games list shows "Amazon / Ruined Temple ... 3 Mini-Cons, 0 data discs, Recruit").
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# Without the seed the Continue Game list is empty and the script FAILs at 'loadsave'.
+#
+# Route (seen in the exploration run l2s_x1, laptop, v4, 2026-10-09):
+#   boot -> skip attract CG -> title -> main menu (NEW GAME selected) -> Down = CONTINUE GAME -> X = "Saved Games" list
+#   (slot 1 = Amazon / Ruined Temple, selected) -> X = load: no confirm dialog, the hub loads straight away (UI_MAIN.MS)
+#   with "View Mission Sites" ALREADY selected (a fresh game starts on "Choose an Autobot" and needs Left x3)
+#   -> X = globe "AMAZON 3/9" + N01AMA.M2V preview -> X = warp gate screen, which defaults to the LAST gate reached =
+#   "RUINED TEMPLE" (Left/Right = Change Warp Gate) -> X "Enter Warp Gate" -> warp load -> level at the second gate.
+# Units/conventions as level_mvp*.tfs: pads = game frames, timeouts in vsyncs/pads, 'budget' is only a safety net.
+# No level intro movie/cinematics on this entry (the fresh route plays N01AMA.M2V + flyover); AMAZON.MS starts the load.
+# Only buttons are scriptable (sticks stay centred), so 'in-game' = Optimus standing at the gate; fps = the gameplay segment
+# spawn2 -> spawn2_300 (pads / wall seconds). Reference counters: REFERENCES.md.
+
+budget 2300s
+stall 600 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+
+boot:     wait seen /FMV/NATTRACT.PSS timeout 4000vs           # notices + 2 logos, untouched
+          wait pads 4
+title:    press start until pads 200 every 40 max 5            # START#1 skips the CG, a later one: title -> main menu
+          mark main_menu                                       # NEW GAME highlighted
+menu:     press down                                           # -> CONTINUE GAME
+          wait pads 20
+          mark main_continue_game
+          press cross                                          # -> "Saved Games" list, slot 1 = Amazon / Ruined Temple
+          wait pads 60 timeout 9000vs
+          mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs   # load slot 1 -> hub loads
+hubload:  wait pads 40 timeout 9000vs                          # hub camera settles; "View Mission Sites" preselected
+          mark hub_view_mission_sites
+missions: press cross until cd /FMV/LEVELS/N01AMA.M2V every 60 max 2 timeout 1500vs   # globe + Amazon preview movie
+          wait pads 4
+          mark globe
+globe:    press cross hold=2 gap=4                             # -> warp gate screen ("RUINED TEMPLE" preselected)
+          wait pads 30 timeout 9000vs
+          mark warp_gate_ruined_temple
+enter:    press cross until cd /TFA.ZIP@1940-44053 or cd /SOUND/MUSIC/AMAZON.MS or cd /SOUND/MUSIC/TEMPLE.MS every 30 max 3 timeout 3000vs
+          mark level_load
+ingame:   wait pads 200 timeout 20000vs                        # warp-in: Optimus steps out of the Ruined Temple gate
+          mark warp_in
+          wait pads 300 timeout 20000vs                        # player has control by ~load+500 pads (l2s_x2 lvl_500)
+          mark spawn2                                          # second spawn area: temple wall left, jungle ahead
+gameplay: wait pads 300 timeout 20000vs                        # 300 game frames in control at the second gate (fps segment)
+          mark spawn2_300
+          pass second spawn area running 300 pads after control at the Ruined Temple Warp Gate

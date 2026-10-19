@@ -1,0 +1,29 @@
+# Source-port play preset, based on the accepted shipping environment.
+# Launchers enable locally built static VU1 when disc.json records static_vu1=true.
+# Edit this local preset to customize; do not add scripted-test knobs for play.
+PS2X_VERSION=Transformers v0.8.3 source port
+PS2X_VU1_THREAD=3
+PS2X_GS_BACKEND=PGS
+PS2X_STOREIMAGE_LAG=1
+PS2X_GS_THREAD=1
+PS2X_VU1_AOT=0
+PS2X_MPEG_AHEAD=120
+PS2X_IOP_RPC_BUDGET=50000000
+PS2X_AUDIO=1
+PS2X_AUDIO_STATS=1
+PS2X_AUDIO_STRETCH=1
+PS2X_LOAD_SKIP=4
+PS2X_QUIET_IO=1
+PS2X_FIELD60=1
+PS2X_PRESENT_ALLFRAMES=1
+PS2X_UPSCALE=fsr1
+
+# Optional Hor+ widescreen; movies stay 4:3, some flat 2D screens stretch.
+#PS2X_WIDESCREEN=16:9
+#PS2X_SHARPNESS=0.8
+#PS2X_AUDIO_VOLUME=1.0
+
+PS2X_PRESENT_RATE=60
+PS2X_POWER_OPTOUT=1
+PS2X_VU1_AOT_STATIC=0
+PS2X_VU1NEW=1

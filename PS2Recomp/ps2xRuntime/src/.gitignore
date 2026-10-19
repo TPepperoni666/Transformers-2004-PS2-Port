@@ -1,0 +1,6 @@
+
+# Local game-derived VU1 microcode; never publish.
+/vu1_aot_private/
+
+# Local game-derived static VU1 fragments; never publish.
+/vu1_static_private/

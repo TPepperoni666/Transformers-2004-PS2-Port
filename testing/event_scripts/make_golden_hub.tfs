@@ -1,0 +1,39 @@
+# make_golden_hub.tfs -- one-off: create the golden memory card (hub autosave in SLOT 1).
+# run_test.ps1 -Name golden1 -Script testing\event_scripts\make_golden_hub.tfs   (fresh card, New Game)
+# PASS when the game has written its save; then copy mc_test_golden1\ to golden\mc_hub_slot1\ (read-only template).
+# Do NOT press Down at Saved Games (slot 1 must hold the save, so the load route never needs to move the cursor).
+
+option timeout 900s
+option stall pads 600vs 10s
+option press hold=4 gap=4 retry=60
+option focus 0,330,512,446
+option dump-on-step on
+fail-on text "FATAL ERROR" code=14
+fail-on crash code=14
+
+ref title        refs/title.png         rgb   136,290,384,345  10
+ref main_menu    refs/main_menu.png     mask  160,272,352,376  0.45
+ref saved_games  refs/saved_games.png   mask  144,216,368,408  0.45
+ref difficulty   refs/difficulty.png    mask  160,264,352,376  0.45
+ref hub_autobot  refs/hub_autobot.png   mask  80,372,432,410   0.45
+ref hub_select   refs/hub_select_autobot.png mask 80,356,432,410 0.45
+
+boot:     wait file /FMV/NATTRACT.PSS timeout 300s
+          wait movie start timeout 60s
+          press start until screen title retry 40 timeout 90s
+          press start until screen main_menu timeout 60s
+          press cross until screen saved_games timeout 60s
+          dump frame saved_games_fresh                       # evidence: 3x Empty
+          press cross until screen difficulty timeout 60s    # slot 1
+          press cross until file /FMV/NINTRO.PSS timeout 60s
+          wait movie start timeout 60s
+          press start until file /TFA2.ZIP retry 40 timeout 60s
+hub:      wait screen hub_autobot timeout 180s
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# Requires your own matching saved-game state; distributed seeds are omitted.
+save:     wait mc saved timeout 60s else continue
+          press cross until screen hub_select timeout 60s else continue
+          press cross until mc saved retry 120 max 3 timeout 300s
+          wait +vs 120                                       # let the icon.sys write + close finish
+          dump frame saved
+          pass "golden card written (slot 1, hub)"

@@ -1,0 +1,45 @@
+# TEMP(transformers) Antarctica route: RESEARCH CENTER warp gate -> look over the research camp.
+# Scripted route checkpoint.
+# 6 = arrival view (spawn_research), 7 = "turn right about 45 degrees and look over the camp" (view_start..view_end).
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# With this card the gate menu opens on RESEARCH CENTER (order with 'left': RC -> Icebreaker -> Crevasse Field ->
+# Ice Canyon -> RC), so no left/right press is needed. Stick: lx ly rx ry, 128 = centre; rx=255 = camera turn right.
+# Scripted route checkpoint.
+# Route checkpoint.
+# Measurement window: view_start..view_end (900 pads, camera and character still).
+budget 1200s
+stall 900 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+boot: wait seen /FMV/NATTRACT.PSS timeout 4000vs
+      wait pads 4
+title: press start until pads 200 every 40 max 5
+       mark main_menu
+menu: press down
+      wait pads 20
+      press cross
+      wait pads 60 timeout 9000vs
+      mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs
+hub: wait pads 40 timeout 9000vs
+     mark hub_loaded
+     press cross
+     wait pads 100 timeout 9000vs
+     mark globe
+gate: press cross
+      wait pads 100 timeout 9000vs
+      mark gate_research_center
+enter: press cross until cd /SOUND/MUSIC/ANTA.MS every 30 max 3 timeout 6000vs
+       mark ant_load
+spawn: wait pads 400 timeout 20000vs
+       mark spawn_research
+turn: stick 128 128 255 128
+      wait pads 13 timeout 20000vs
+      stick none
+      mark turn_released
+settle: wait pads 60 timeout 20000vs
+        mark view_start
+view: wait pads 900 timeout 40000vs
+      mark view_end
+      pass Antarctica Research Center camp view route complete

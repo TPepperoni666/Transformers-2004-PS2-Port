@@ -1,0 +1,65 @@
+# warp_gate_mvp.tfs -- PS2X_SCRIPT (grammar: ../USAGE.md, design: ../PLAN.md section 3.4) for Transformers SLUS_206.68.
+# Route (FRESH memory card): boot -> skip attract CG -> title -> New Game -> slot 1 (Empty) -> Difficulty ->
+# skip story intro -> hub ("Choose an Autobot") -> Left x3 = "View Mission Sites" -> X -> globe + N01AMA.M2V preview
+# -> X -> warp gate -> X "Enter Warp Gate" -> level data streams  => PASS (exit 0).
+# Original plan version (Left x2, wrong): warp_gate_mvp.plan_orig.tfs.
+#
+# Hub menu ring (corrected 2026-10-08): pressing LEFT from "Choose an Autobot" gives
+#   Choose an Autobot -> Exit to Title Screen -> Adjust Game Options -> View Mission Sites
+# Scripted route checkpoint.
+#   Choose an Autobot -> Equip Mini-Cons -> View Mission Sites -> Adjust Game Options (-> Exit to Title Screen)
+# Scripted route checkpoint.
+#
+# Expected verdict on the 2026-10-08 build: STALL (exit 2) at step 'enter' (EE spins in 0x26EEC0 / 0x25D990 waiting
+# Scripted route checkpoint.
+#
+# Units: "pads" = the game's scePadRead calls on port 0 = game frames (~0.5 per vsync when healthy, ~1 per 180 vsyncs
+# while the frame loop runs on its 3 s watchdog). Timeouts are in vsyncs/pads so verdicts never depend on host speed;
+# Scripted route checkpoint.
+# Scripted route checkpoint.
+# Scripted route checkpoint.
+# Scripted route checkpoint.
+# Tune the blind hub waits from the step_*.png screenshots after the first run.
+
+budget 900s
+stall 600 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+
+boot:     wait seen /FMV/NATTRACT.PSS timeout 4000vs           # notices (fixed 1248 vs) + 2 logos, untouched
+          wait pads 4
+title:    press start until pads 200 every 40 max 5            # START#1 skips the CG, a later one: title -> main menu
+          mark main_menu                                       # Scripted route checkpoint.
+                                                               # Scripted route checkpoint.
+menus:    press cross until cd /FMV/NINTRO.PSS every 40 max 6 timeout 2000vs   # New Game -> slot 1 -> Difficulty -> intro
+          wait pads 40                                         # Scripted route checkpoint.
+intro:    press start until cd /TFA2.ZIP every 40 max 10 timeout 3000vs        # skip intro -> hub load starts
+hubload:  wait seen /SOUND/MUSIC/UI_MAIN.MS timeout 1500vs      # hub music = hub up
+          wait pads 40                                         # camera/fade settles (~20 s wall at ~4 vs/s)
+          mark hub_choose_autobot
+hubnav:   press left                                           # -> "Exit to Title Screen"  (do NOT press X here)
+          wait pads 30
+          mark hub_exit_to_title
+          press left                                           # -> "Adjust Game Options"
+          wait pads 30
+          mark hub_adjust_options
+          press left                                           # -> "View Mission Sites"
+          wait pads 30
+          mark hub_view_mission_sites
+# Alternative (2 presses, via "Equip Mini-Cons"): replace the 9 hubnav lines above with
+#   hubnav:   press right
+#             wait pads 30
+#             mark hub_equip_minicons
+#             press right
+#             wait pads 30
+#             mark hub_view_mission_sites
+missions: press cross until cd /FMV/LEVELS/N01AMA.M2V every 60 max 2 timeout 1500vs   # globe + preview movie
+          wait pads 4                                          # today: 3 s watchdog mode, ~180 vs per pad read
+          mark globe
+globe:    press cross hold=2 gap=4                             # -> warp gate (works even on the black globe)
+          wait pads 30 timeout 9000vs                          # gate renders normally (~60 vs); 9000 covers ~180 vs/read
+          mark warp_gate
+enter:    press cross until cd /TFA.ZIP@1940-44053 or cd /SOUND/MUSIC/AMAZON.MS every 30 max 3 timeout 3000vs
+          mark level_load                                      # 01_AMAZON_1 data inside TFA.ZIP / level music
+          pass level load started after Enter Warp Gate

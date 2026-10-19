@@ -1,0 +1,582 @@
+# Route checkpoint.
+# Requires your own matching saved-game state; distributed seeds are omitted.
+budget 3600s
+stall 900 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+
+boot:     wait seen /FMV/NATTRACT.PSS timeout 4000vs
+          wait pads 4
+title:    press start until pads 200 every 40 max 5
+          mark main_menu
+menu:     press down
+          wait pads 20
+          mark main_continue_game
+          press cross
+          wait pads 60 timeout 9000vs
+          mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs
+hubload:  wait pads 40 timeout 9000vs
+          mark hub_view_mission_sites
+missions: press cross until cd /FMV/LEVELS/N01AMA.M2V every 60 max 2 timeout 1500vs
+          wait pads 4
+          mark globe
+globe:    press cross hold=2 gap=4
+          wait pads 30 timeout 9000vs
+          mark warp_gate_screen
+enter:    press cross until cd /TFA.ZIP@1940-44053 or cd /SOUND/MUSIC/AMAZON.MS or cd /SOUND/MUSIC/TEMPLE.MS every 30 max 3 timeout 3000vs
+          mark level_load
+ingame:   wait pads 200 timeout 20000vs
+          mark warp_in
+          wait pads 300 timeout 20000vs
+          mark spawn
+explore:  stick 128 0 128 128
+          wait pads 120 timeout 20000vs
+          stick none
+          mark f00
+          stick 128 0 100 128
+          press r1
+          wait pads 60 timeout 20000vs
+          press l2
+          wait pads 40
+          stick 166 0 100 128
+          press r1
+          wait pads 40 timeout 20000vs
+          stick 90 0 128 128
+          press r1
+          wait pads 60 timeout 20000vs
+          press l1
+          wait pads 20
+          press r2
+          wait pads 40
+          stick 166 0 128 128
+          press r1
+          wait pads 40 timeout 20000vs
+          stick none
+          mark f01
+          stick 128 0 60 128
+          press r1
+          wait pads 80 timeout 20000vs
+          press l2
+          wait pads 40
+          stick 166 0 128 128
+          press r1
+          wait pads 40 timeout 20000vs
+          press l1
+          wait pads 20
+          press l2
+          wait pads 40
+          stick 128 0 60 128
+          press r1
+          wait pads 80 timeout 20000vs
+          stick 166 0 60 128
+          press r1
+          wait pads 80 timeout 20000vs
+          press l1
+          wait pads 20
+          press l2
+          wait pads 40
+          stick none
+          mark f02
+          stick 128 0 60 128
+          press r1
+          wait pads 80 timeout 20000vs
+          press l1
+          wait pads 20
+          stick 128 0 156 128
+          press r1
+          wait pads 60 timeout 20000vs
+          stick 128 0 100 128
+          press r1
+          wait pads 40 timeout 20000vs
+          stick 128 0 60 128
+          press r1
+          wait pads 80 timeout 20000vs
+          stick none
+          mark f03
+          stick 128 0 156 128
+          press r1
+          wait pads 80 timeout 20000vs
+          press r2
+          wait pads 40
+          stick 128 0 128 128
+          press r1
+          wait pads 40 timeout 20000vs
+          stick 128 0 196 128
+          press r1
+          wait pads 80 timeout 20000vs
+          stick 128 0 100 128
+          press r1
+          wait pads 80 timeout 20000vs
+          stick none
+          mark f04
+          stick 128 0 156 128
+          press r1
+          wait pads 40 timeout 20000vs
+          stick 128 0 196 128
+          press r1
+          wait pads 40 timeout 20000vs
+          stick 90 0 60 128
+          press r1
+          wait pads 60 timeout 20000vs
+          stick 128 0 100 128
+          press r1
+          wait pads 60 timeout 20000vs
+          stick none
+          mark f05
+          press triangle
+          wait pads 60 timeout 20000vs
+          dump vtrans
+          buttons cross
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v000
+          wait pads 40 timeout 20000vs
+          dump v001
+          wait pads 40 timeout 20000vs
+          dump v002
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v003
+          wait pads 20 timeout 20000vs
+          dump v004
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v005
+          wait pads 20 timeout 20000vs
+          dump v006
+          mark d01
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v007
+          wait pads 40 timeout 20000vs
+          dump v008
+          wait pads 40 timeout 20000vs
+          dump v009
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v010
+          wait pads 20 timeout 20000vs
+          dump v011
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v012
+          wait pads 20 timeout 20000vs
+          dump v013
+          mark d02
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v014
+          wait pads 40 timeout 20000vs
+          dump v015
+          wait pads 40 timeout 20000vs
+          dump v016
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v017
+          wait pads 20 timeout 20000vs
+          dump v018
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v019
+          wait pads 20 timeout 20000vs
+          dump v020
+          mark d03
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v021
+          wait pads 40 timeout 20000vs
+          dump v022
+          wait pads 40 timeout 20000vs
+          dump v023
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v024
+          wait pads 20 timeout 20000vs
+          dump v025
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v026
+          wait pads 20 timeout 20000vs
+          dump v027
+          mark d04
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v028
+          wait pads 40 timeout 20000vs
+          dump v029
+          wait pads 40 timeout 20000vs
+          dump v030
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v031
+          wait pads 20 timeout 20000vs
+          dump v032
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v033
+          wait pads 20 timeout 20000vs
+          dump v034
+          mark d05
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v035
+          wait pads 40 timeout 20000vs
+          dump v036
+          wait pads 40 timeout 20000vs
+          dump v037
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v038
+          wait pads 20 timeout 20000vs
+          dump v039
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v040
+          wait pads 20 timeout 20000vs
+          dump v041
+          mark d06
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v042
+          wait pads 40 timeout 20000vs
+          dump v043
+          wait pads 40 timeout 20000vs
+          dump v044
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v045
+          wait pads 20 timeout 20000vs
+          dump v046
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v047
+          wait pads 20 timeout 20000vs
+          dump v048
+          mark d07
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v049
+          wait pads 40 timeout 20000vs
+          dump v050
+          wait pads 40 timeout 20000vs
+          dump v051
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v052
+          wait pads 20 timeout 20000vs
+          dump v053
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v054
+          wait pads 20 timeout 20000vs
+          dump v055
+          mark d08
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v056
+          wait pads 40 timeout 20000vs
+          dump v057
+          wait pads 40 timeout 20000vs
+          dump v058
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v059
+          wait pads 20 timeout 20000vs
+          dump v060
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v061
+          wait pads 20 timeout 20000vs
+          dump v062
+          mark d09
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v063
+          wait pads 40 timeout 20000vs
+          dump v064
+          wait pads 40 timeout 20000vs
+          dump v065
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v066
+          wait pads 20 timeout 20000vs
+          dump v067
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v068
+          wait pads 20 timeout 20000vs
+          dump v069
+          mark d10
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v070
+          wait pads 40 timeout 20000vs
+          dump v071
+          wait pads 40 timeout 20000vs
+          dump v072
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v073
+          wait pads 20 timeout 20000vs
+          dump v074
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v075
+          wait pads 20 timeout 20000vs
+          dump v076
+          mark d11
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v077
+          wait pads 40 timeout 20000vs
+          dump v078
+          wait pads 40 timeout 20000vs
+          dump v079
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v080
+          wait pads 20 timeout 20000vs
+          dump v081
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v082
+          wait pads 20 timeout 20000vs
+          dump v083
+          mark d12
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v084
+          wait pads 40 timeout 20000vs
+          dump v085
+          wait pads 40 timeout 20000vs
+          dump v086
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v087
+          wait pads 20 timeout 20000vs
+          dump v088
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v089
+          wait pads 20 timeout 20000vs
+          dump v090
+          mark d13
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v091
+          wait pads 40 timeout 20000vs
+          dump v092
+          wait pads 40 timeout 20000vs
+          dump v093
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v094
+          wait pads 20 timeout 20000vs
+          dump v095
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v096
+          wait pads 20 timeout 20000vs
+          dump v097
+          mark d14
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v098
+          wait pads 40 timeout 20000vs
+          dump v099
+          wait pads 40 timeout 20000vs
+          dump v100
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v101
+          wait pads 20 timeout 20000vs
+          dump v102
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v103
+          wait pads 20 timeout 20000vs
+          dump v104
+          mark d15
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v105
+          wait pads 40 timeout 20000vs
+          dump v106
+          wait pads 40 timeout 20000vs
+          dump v107
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v108
+          wait pads 20 timeout 20000vs
+          dump v109
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v110
+          wait pads 20 timeout 20000vs
+          dump v111
+          mark d16
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v112
+          wait pads 40 timeout 20000vs
+          dump v113
+          wait pads 40 timeout 20000vs
+          dump v114
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v115
+          wait pads 20 timeout 20000vs
+          dump v116
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v117
+          wait pads 20 timeout 20000vs
+          dump v118
+          mark d17
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v119
+          wait pads 40 timeout 20000vs
+          dump v120
+          wait pads 40 timeout 20000vs
+          dump v121
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v122
+          wait pads 20 timeout 20000vs
+          dump v123
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v124
+          wait pads 20 timeout 20000vs
+          dump v125
+          mark d18
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v126
+          wait pads 40 timeout 20000vs
+          dump v127
+          wait pads 40 timeout 20000vs
+          dump v128
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v129
+          wait pads 20 timeout 20000vs
+          dump v130
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v131
+          wait pads 20 timeout 20000vs
+          dump v132
+          mark d19
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v133
+          wait pads 40 timeout 20000vs
+          dump v134
+          wait pads 40 timeout 20000vs
+          dump v135
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v136
+          wait pads 20 timeout 20000vs
+          dump v137
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v138
+          wait pads 20 timeout 20000vs
+          dump v139
+          mark d20
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v140
+          wait pads 40 timeout 20000vs
+          dump v141
+          wait pads 40 timeout 20000vs
+          dump v142
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v143
+          wait pads 20 timeout 20000vs
+          dump v144
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v145
+          wait pads 20 timeout 20000vs
+          dump v146
+          mark d21
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v147
+          wait pads 40 timeout 20000vs
+          dump v148
+          wait pads 40 timeout 20000vs
+          dump v149
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v150
+          wait pads 20 timeout 20000vs
+          dump v151
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v152
+          wait pads 20 timeout 20000vs
+          dump v153
+          mark d22
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v154
+          wait pads 40 timeout 20000vs
+          dump v155
+          wait pads 40 timeout 20000vs
+          dump v156
+          stick 255 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v157
+          wait pads 20 timeout 20000vs
+          dump v158
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v159
+          wait pads 20 timeout 20000vs
+          dump v160
+          mark d23
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v161
+          wait pads 40 timeout 20000vs
+          dump v162
+          wait pads 40 timeout 20000vs
+          dump v163
+          stick 0 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v164
+          wait pads 20 timeout 20000vs
+          dump v165
+          stick 128 0 128 128
+          wait pads 40 timeout 20000vs
+          dump v166
+          wait pads 20 timeout 20000vs
+          dump v167
+          mark d24
+          buttons none
+          stick none
+          press triangle
+          wait pads 60 timeout 20000vs
+          dump vback
+# alive check (dev: else continue + screenshots)
+          mark check_start
+          press start
+          wait pads 30 timeout 20000vs
+          dump chk_pause
+          press down
+          wait pads 20 timeout 20000vs
+          dump chk_down
+          press cross
+          wait lsn 1127430-1146821 timeout 240vs else continue
+          mark chk_cue_or_timeout
+          wait pads 30 timeout 3000vs else continue
+          dump chk_obj
+          pass c9 done

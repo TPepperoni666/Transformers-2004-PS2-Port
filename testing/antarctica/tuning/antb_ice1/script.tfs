@@ -1,0 +1,80 @@
+# Scripted route checkpoint.
+# Learns the default gate + the left/right order of the Antarctica warp gates. Not a test route.
+budget 1200s
+stall 900 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+boot: wait seen /FMV/NATTRACT.PSS timeout 4000vs
+      wait pads 4
+title: press start until pads 200 every 40 max 5
+       mark main_menu
+menu: press down
+      wait pads 20
+      mark main_continue
+      press cross
+      wait pads 60 timeout 9000vs
+      mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs
+hub: wait pads 40 timeout 9000vs
+     mark hub_loaded
+     press cross
+     wait pads 100 timeout 9000vs
+     mark globe
+gate: press cross
+      wait pads 40 timeout 9000vs
+      mark gate_default
+pick: press left
+      wait pads 40 timeout 9000vs
+      mark gate_icebreaker
+enter: press cross until cd /SOUND/MUSIC/ANTA.MS every 30 max 3 timeout 6000vs
+       mark ant_load
+spawn: wait pads 100 timeout 20000vs
+       mark sp100
+       wait pads 50 timeout 20000vs
+       mark sp150
+       wait pads 50 timeout 20000vs
+       mark sp200
+       wait pads 50 timeout 20000vs
+       mark sp250
+       wait pads 50 timeout 20000vs
+       mark sp300
+       wait pads 100 timeout 20000vs
+       mark sp400
+turn: stick 128 128 255 128
+      wait pads 5 timeout 20000vs
+      mark r5
+      wait pads 5 timeout 20000vs
+      mark r10
+      stick none
+      wait pads 30 timeout 20000vs
+      mark r10_settled
+walk: stick 128 0 128 128
+      wait pads 20 timeout 20000vs
+      mark w20
+      wait pads 20 timeout 20000vs
+      mark w40
+      wait pads 20 timeout 20000vs
+      mark w60
+      wait pads 20 timeout 20000vs
+      mark w80
+      wait pads 20 timeout 20000vs
+      mark w100
+      wait pads 20 timeout 20000vs
+      mark w120
+      wait pads 20 timeout 20000vs
+      mark w140
+      wait pads 20 timeout 20000vs
+      mark w160
+      wait pads 20 timeout 20000vs
+      mark w180
+      wait pads 20 timeout 20000vs
+      mark w200
+      wait pads 20 timeout 20000vs
+      mark w220
+      wait pads 20 timeout 20000vs
+      mark w240
+      stick none
+      wait pads 60 timeout 20000vs
+      mark walk_settled
+      pass icebreaker scout complete

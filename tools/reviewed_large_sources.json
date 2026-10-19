@@ -1,0 +1,10 @@
+{
+  "deps/parallel-gs/Granite/third_party/khronos/vulkan-headers/include/vulkan/vulkan_structs.hpp": [
+    "7b4feb9aa4b04627b36f4da76ec8f40fa242f8871b07ff6bb28b68795aec18b5",
+    "9351e68ea11508f3cff395e5ec158f5bf4e25cb50c623add5fa5e71c1b3f56f6"
+  ],
+  "deps/parallel-gs/Granite/third_party/khronos/vulkan-headers/registry/validusage.json": [
+    "3eccaa6482c6ff3f00670a027308b48dd0b225bf011fa2a6fe7b29b9e24378dc",
+    "50cc38da37f0786dd23fd45c4f3f5342516874a1cb20da94432b53c8c04e3a0f"
+  ]
+}

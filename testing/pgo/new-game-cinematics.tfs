@@ -1,0 +1,44 @@
+# Cold boot, empty card; menus, new game and first-level cinematics.
+budget off
+stall 600 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps off
+boot:     wait seen /FMV/NATTRACT.PSS timeout 4000vs
+          wait pads 4
+title:    press start until pads 200 every 40 max 5
+          mark main_menu
+menus:    press cross until cd /FMV/NINTRO.PSS every 40 max 6 timeout 2000vs
+          wait pads 40
+intro:    press start until cd /TFA2.ZIP every 40 max 10 timeout 3000vs
+hubload:  wait seen /SOUND/MUSIC/UI_MAIN.MS timeout 1500vs
+          wait pads 40
+          mark hub_choose_autobot
+hubnav:   press left
+          wait pads 30
+          mark hub_exit_to_title
+          press left
+          wait pads 30
+          mark hub_adjust_options
+          press left
+          wait pads 30
+          mark hub_view_mission_sites
+missions: press cross until cd /FMV/LEVELS/N01AMA.M2V every 60 max 2 timeout 1500vs
+          wait pads 4
+          mark globe
+globe:    press cross hold=2 gap=4
+          wait pads 30 timeout 9000vs
+          mark warp_gate
+enter:    press cross until cd /TFA.ZIP@1940-44053 or cd /SOUND/MUSIC/AMAZON.MS every 30 max 3 timeout 3000vs
+          mark level_load
+ingame:   wait pads 200 timeout 9000vs
+          mark level_ingame
+          wait pads 100 timeout 6000vs
+          mark level_ingame2
+          wait pads 1500 timeout 40000vs
+          mark level_after_intro
+          wait pads 300 timeout 20000vs
+          mark level_spawn
+          wait pads 300 timeout 20000vs
+          mark level_spawn2
+          pass fresh-card cinematics complete

@@ -1,0 +1,96 @@
+# Scripted route checkpoint.
+# Turn-rate calibration: right stick X=255 in 5-pad bursts, 20 pads settle after each, mark rrN = N pads of turning so far.
+budget 1200s
+stall 900 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+boot: wait seen /FMV/NATTRACT.PSS timeout 4000vs
+      wait pads 4
+title: press start until pads 200 every 40 max 5
+       mark main_menu
+menu: press down
+      wait pads 20
+      mark main_continue
+      press cross
+      wait pads 60 timeout 9000vs
+      mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs
+hub: wait pads 40 timeout 9000vs
+     mark hub_loaded
+     press cross
+     wait pads 100 timeout 9000vs
+     mark globe
+gate: press cross
+      wait pads 40 timeout 9000vs
+      mark gate_default
+pick: press left
+      wait pads 40 timeout 9000vs
+      mark gate_icebreaker
+enter: press cross until cd /SOUND/MUSIC/ANTA.MS every 30 max 3 timeout 6000vs
+       mark ant_load
+spawn: wait pads 300 timeout 20000vs
+       mark spawn300
+       wait pads 60 timeout 20000vs
+       mark spawn360
+turn1: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr5
+turn2: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr10
+turn3: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr15
+turn4: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr20
+turn5: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr25
+turn6: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr30
+turn7: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr35
+turn8: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr40
+turn9: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr45
+turn10: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr50
+turn11: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr55
+turn12: stick 128 128 255 128
+       wait pads 5 timeout 20000vs
+       stick none
+       wait pads 20 timeout 20000vs
+       mark rr60
+       pass icebreaker turn scout complete

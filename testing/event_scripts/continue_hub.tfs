@@ -1,0 +1,44 @@
+# continue_hub.tfs -- load-from-card route: golden card (hub save in slot 1) -> CONTINUE GAME -> hub -> warp gate.
+# run_test.ps1 -Name cont1 -McSeed golden\mc_hub_slot1 -Script testing\event_scripts\continue_hub.tfs
+# FIRST RUN IS A BOOTSTRAP: the Continue/Load screens have never been seen in any run, so refs main_menu_cont,
+# load_games and load_confirm do not exist yet. Run once with 'option bootstrap on' (every unknown screen after a
+# press is dumped as step_NN_*.png and the run fails with code 10 "unknown screen"), cut the refs from those dumps,
+# then rerun. NEVER use NEW GAME with this card: slot 1 is occupied -> "OVERWRITE SAVE FILE?" defaults to NO and
+# X loops Saved Games <-> Overwrite forever (frames_verify1/frame_06450 and frame_07650).
+
+option timeout 900s
+option stall pads 600vs 10s
+option watchdog warn 600vs 60
+option press hold=4 gap=4 retry=60
+option focus 0,240,512,446
+option dump-on-step on
+option bootstrap on
+fail-on text "FATAL ERROR" code=14
+fail-on crash code=14
+
+ref title          refs/title.png            rgb   136,290,384,345  10
+ref main_menu      refs/main_menu.png        mask  160,272,352,376  0.45   # cursor on NEW GAME (fresh-card look)
+ref main_menu_cont refs/main_menu_cont.png   mask  160,272,352,376  0.45   # BOOTSTRAP: cursor on CONTINUE GAME
+ref load_games     refs/load_games.png       mask  144,216,368,408  0.45   # BOOTSTRAP: Saved Games list, slot 1 = save
+ref load_confirm   refs/load_confirm.png     mask  80,280,432,410   0.45   # BOOTSTRAP: only if a Yes/No confirm exists
+ref hub_autobot    refs/hub_autobot.png      mask  80,372,432,410   0.45
+ref hub_missions   refs/hub_missions.png     mask  80,372,432,410   0.45
+ref warp_gate      refs/warp_gate.png        mask  136,352,376,408  0.45
+
+boot:     wait file /FMV/NATTRACT.PSS timeout 300s
+          wait movie start timeout 60s
+          press start until screen title retry 40 timeout 90s
+          press start until screen main_menu or screen main_menu_cont timeout 60s
+          mark "CONTINUE GAME enabled?"                     # the dump shows whether the item is lit
+menu:     press down until screen main_menu_cont max 3 timeout 60s     # skipped at once if the cursor already sits there
+          press cross until screen load_games timeout 60s
+load:     press cross until file /TFA2.ZIP or screen load_confirm timeout 60s
+          if screen load_confirm then press up then press cross until file /TFA2.ZIP timeout 60s
+hub:      wait screen hub_autobot or screen hub_missions timeout 180s     # where does a loaded game open?
+          press left until screen hub_missions retry 40 max 4 timeout 240s
+          press cross until file /FMV/LEVELS/N01AMA.M2V timeout 120s
+          press cross until screen warp_gate retry 60 max 3 timeout 300s
+          dump frame warp_gate
+          press cross
+          wait file /TFA.ZIP@1940-44053 or file /SOUND/MUSIC/AMAZON.MS timeout 300s else fail "no level load"
+          pass "level load started (from golden card)"

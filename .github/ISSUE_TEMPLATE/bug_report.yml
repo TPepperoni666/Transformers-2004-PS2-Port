@@ -1,0 +1,91 @@
+name: Bug report
+description: A reproducible gameplay, graphics, audio or input problem.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only the NTSC-U disc SLUS-20668 is supported. PAL is unsupported.
+        Never upload game files, disc images, ELF/IRX files, assets, generated C++, VU1 packages, saves, memory cards or binary dumps.
+        Review text before posting: remove personal paths, usernames, hostnames, IP addresses, tokens and game-data or guest-memory content.
+  - type: input
+    id: version
+    attributes:
+      label: Release version or source revision
+      description: Include the exact version and any local source changes. Do not paste a personal checkout path.
+      placeholder: "v0.8.3; unmodified source"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS and version
+      description: Include Proton version and distribution for Linux handhelds; state whether this is a native build or a Windows build under Proton.
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver version
+      description: Include the selected GPU if the system has more than one; write unknown if unavailable.
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: Disc region
+      description: Only NTSC-U SLUS-20668 is supported. Do not attach the disc or extracted files.
+      options:
+        - NTSC-U (SLUS-20668; supported)
+        - NTSC-J (unsupported)
+        - PAL (unsupported)
+        - Other or unknown (unsupported)
+    validations:
+      required: true
+  - type: input
+    id: serial
+    attributes:
+      label: Disc serial
+      description: Type the serial as text; no disc image or extracted files.
+      placeholder: SLUS-20668
+    validations:
+      required: true
+  - type: textarea
+    id: configuration
+    attributes:
+      label: Setup and settings
+      description: State the setup command with private paths replaced, interpreter or optional static VU1/optimise, graphics settings and overrides. For handhelds include power limit.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Exact reproduction steps
+      description: Give the location, actions, frequency and whether a fresh card reproduces it. Describe any save requirement without uploading the save.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+      description: Include the visible error and exit code if available; describe what you expected to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Reviewed diagnostic text (or explain why none exists)
+      description: |
+        Scripted test runs write stdout.log and stderr.log in their run folder. Ordinary play launchers print to the console without automatically creating these files.
+        Windows crashes may write crash_YYYYMMDD_HHMMSS.txt in the game working folder, or PS2X_PLAYTEST_DIR / PS2X_DUMP_DIR if set.
+        Paste only a short redacted host-error excerpt; never attach crash_*.dmp, crash_*_rdram.bin, guest-memory text or entire work folders.
+        If no file was produced, say so and paste the visible console error with private paths replaced.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before submitting
+      options:
+        - label: I reviewed my report and attachments for private information and included no game files, disc images, generated game data, saves or binary dumps.
+          required: true

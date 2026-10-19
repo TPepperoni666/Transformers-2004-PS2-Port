@@ -1,0 +1,63 @@
+# Scripted route checkpoint.
+# Requires your own matching saved-game state; distributed seeds are omitted.
+# pause -> QUIT GAME -> "ARE YOU SURE?" (NO preselected, Up = YES) -> X: the level is torn down behind the loading-screen
+# Scripted route checkpoint.
+# cannot be re-entered; quitting runs the same loading-screen setup (0x26EEC0) + scene teardown (sub_002137D0).
+# Requires your own matching saved-game state; distributed seeds are omitted.
+#   v4: every loading screen logs "[watch] addr=0x100c... -> 0x0 ... ra=0x26f0a0 a0=0x1100c000 a2=0x2300" = the memset stub
+#       0x110340 called at 0x26F064 on VU1 data memory (0x1100C000, 0x2300 bytes) zeroed RDRAM 0x0100C000-0x0100E2FF,
+#       the window holding both crash objects (0x100C110 playtest #2, 0x100C3E0 playtest #1).
+# Scripted route checkpoint.
+# With this card/route the heap holds no scene node in that window at quit time, so the run PASSes on v4 too (the crash
+# Scripted route checkpoint.
+budget 2300s
+stall 600 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+
+boot:     wait seen /FMV/NATTRACT.PSS timeout 4000vs           # notices + 2 logos, untouched
+          wait pads 4
+title:    press start until pads 200 every 40 max 5            # START#1 skips the CG, a later one: title -> main menu
+          mark main_menu                                       # NEW GAME highlighted
+menu:     press down                                           # -> CONTINUE GAME
+          wait pads 20
+          mark main_continue_game
+          press cross                                          # -> "Saved Games" list, slot 1 = Amazon / Ruined Temple
+          wait pads 60 timeout 9000vs
+          mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs   # load slot 1 -> hub loads
+hubload:  wait pads 40 timeout 9000vs                          # hub camera settles; "View Mission Sites" preselected
+          mark hub_view_mission_sites
+missions: press cross until cd /FMV/LEVELS/N01AMA.M2V every 60 max 2 timeout 1500vs   # globe + Amazon preview movie
+          wait pads 4
+          mark globe
+globe:    press cross hold=2 gap=4                             # -> warp gate screen ("RUINED TEMPLE" preselected)
+          wait pads 30 timeout 9000vs
+          mark warp_gate_ruined_temple
+enter:    press cross until cd /TFA.ZIP@1940-44053 or cd /SOUND/MUSIC/AMAZON.MS or cd /SOUND/MUSIC/TEMPLE.MS every 30 max 3 timeout 3000vs
+          mark level_load
+ingame:   wait pads 200 timeout 20000vs                        # warp-in: Optimus steps out of the Ruined Temple gate
+          mark warp_in
+          wait pads 300 timeout 20000vs                        # player has control by ~load+500 pads (l2s_x2 lvl_500)
+          mark spawn2                                          # second spawn area: temple wall left, jungle ahead
+pause:    press start
+          wait pads 30 timeout 6000vs                         # PAUSE: RESUME / SHOW OBJECTIVE / OPTIONS / QUIT GAME
+          press down
+          wait pads 6 timeout 6000vs
+          press down
+          wait pads 6 timeout 6000vs
+          press down
+          wait pads 10 timeout 6000vs
+          mark quit_selected
+quit:     press cross                                         # -> ARE YOU SURE? YES / NO (NO preselected)
+          wait pads 20 timeout 6000vs
+          press up                                            # -> YES
+          wait pads 10 timeout 6000vs
+          mark quit_yes
+          press cross                                         # level teardown behind the vortex, then the main menu
+          wait vs 900 timeout 4000vs                          # the playtest crashes came ~170 vsyncs into the load
+          mark quit_load_900
+menu:     wait pads 100 timeout 6000vs                        # main menu polling the pad again = the teardown survived
+          mark main_menu_after_quit
+          pass level torn down through QUIT GAME, back at the main menu

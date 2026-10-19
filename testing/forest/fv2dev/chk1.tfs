@@ -1,0 +1,309 @@
+# Route checkpoint.
+budget 2400s
+stall 900 hard 3600
+watchdog warn 30 600
+defaults hold=3 gap=6 timeout=3000vs
+dumpsteps on
+
+boot:     wait seen /FMV/NATTRACT.PSS timeout 4000vs
+          wait pads 4
+title:    press start until pads 200 every 40 max 5
+          mark main_menu
+menu:     press down
+          wait pads 20
+          mark main_continue_game
+          press cross
+          wait pads 60 timeout 9000vs
+          mark saved_games
+loadsave: press cross until cd /SOUND/MUSIC/UI_MAIN.MS every 120 max 2 timeout 3000vs
+hubload:  wait pads 40 timeout 9000vs
+          mark hub_view_mission_sites
+missions: press cross until cd /FMV/LEVELS/N01AMA.M2V every 60 max 2 timeout 1500vs
+          wait pads 4
+          mark globe
+globe:    press cross hold=2 gap=4
+          wait pads 30 timeout 9000vs
+          mark warp_gate_screen
+enter:    press cross until cd /TFA.ZIP@1940-44053 or cd /SOUND/MUSIC/AMAZON.MS or cd /SOUND/MUSIC/TEMPLE.MS every 30 max 3 timeout 3000vs
+          mark level_load
+ingame:   wait pads 200 timeout 20000vs
+          mark warp_in
+          wait pads 300 timeout 20000vs
+          mark spawn
+cal:      wait pads 30 timeout 20000vs
+          dump c000
+          stick 128 128 0 128
+          wait pads 4 timeout 20000vs
+          dump c001
+          wait pads 4 timeout 20000vs
+          dump c002
+          wait pads 4 timeout 20000vs
+          dump c003
+          wait pads 4 timeout 20000vs
+          dump c004
+          wait pads 4 timeout 20000vs
+          dump c005
+          wait pads 4 timeout 20000vs
+          dump c006
+          wait pads 4 timeout 20000vs
+          dump c007
+          wait pads 4 timeout 20000vs
+          dump c008
+          wait pads 4 timeout 20000vs
+          dump c009
+          wait pads 4 timeout 20000vs
+          dump c010
+          wait pads 4 timeout 20000vs
+          dump c011
+          wait pads 4 timeout 20000vs
+          dump c012
+          wait pads 4 timeout 20000vs
+          dump c013
+          wait pads 4 timeout 20000vs
+          dump c014
+          wait pads 4 timeout 20000vs
+          dump c015
+          wait pads 4 timeout 20000vs
+          dump c016
+          wait pads 4 timeout 20000vs
+          dump c017
+          wait pads 4 timeout 20000vs
+          dump c018
+          wait pads 4 timeout 20000vs
+          dump c019
+          wait pads 4 timeout 20000vs
+          dump c020
+          wait pads 4 timeout 20000vs
+          dump c021
+          wait pads 4 timeout 20000vs
+          dump c022
+          wait pads 4 timeout 20000vs
+          dump c023
+          wait pads 4 timeout 20000vs
+          dump c024
+          wait pads 4 timeout 20000vs
+          dump c025
+          wait pads 4 timeout 20000vs
+          dump c026
+          wait pads 4 timeout 20000vs
+          dump c027
+          wait pads 4 timeout 20000vs
+          dump c028
+          wait pads 4 timeout 20000vs
+          dump c029
+          wait pads 4 timeout 20000vs
+          dump c030
+          wait pads 4 timeout 20000vs
+          dump c031
+          wait pads 4 timeout 20000vs
+          dump c032
+          wait pads 4 timeout 20000vs
+          dump c033
+          wait pads 4 timeout 20000vs
+          dump c034
+          wait pads 4 timeout 20000vs
+          dump c035
+          wait pads 4 timeout 20000vs
+          dump c036
+          wait pads 4 timeout 20000vs
+          dump c037
+          wait pads 4 timeout 20000vs
+          dump c038
+          wait pads 4 timeout 20000vs
+          dump c039
+          wait pads 4 timeout 20000vs
+          dump c040
+          wait pads 4 timeout 20000vs
+          dump c041
+          wait pads 4 timeout 20000vs
+          dump c042
+          wait pads 4 timeout 20000vs
+          dump c043
+          wait pads 4 timeout 20000vs
+          dump c044
+          wait pads 4 timeout 20000vs
+          dump c045
+          wait pads 4 timeout 20000vs
+          dump c046
+          wait pads 4 timeout 20000vs
+          dump c047
+          wait pads 4 timeout 20000vs
+          dump c048
+          wait pads 4 timeout 20000vs
+          dump c049
+          wait pads 4 timeout 20000vs
+          dump c050
+          wait pads 4 timeout 20000vs
+          dump c051
+          wait pads 4 timeout 20000vs
+          dump c052
+          wait pads 4 timeout 20000vs
+          dump c053
+          wait pads 4 timeout 20000vs
+          dump c054
+          wait pads 4 timeout 20000vs
+          dump c055
+          wait pads 4 timeout 20000vs
+          dump c056
+          wait pads 4 timeout 20000vs
+          dump c057
+          wait pads 4 timeout 20000vs
+          dump c058
+          wait pads 4 timeout 20000vs
+          dump c059
+          wait pads 4 timeout 20000vs
+          dump c060
+          stick none
+          wait pads 30 timeout 20000vs
+          dump h000
+          stick 128 128 64 128
+          wait pads 6 timeout 20000vs
+          dump h001
+          wait pads 6 timeout 20000vs
+          dump h002
+          wait pads 6 timeout 20000vs
+          dump h003
+          wait pads 6 timeout 20000vs
+          dump h004
+          wait pads 6 timeout 20000vs
+          dump h005
+          wait pads 6 timeout 20000vs
+          dump h006
+          wait pads 6 timeout 20000vs
+          dump h007
+          wait pads 6 timeout 20000vs
+          dump h008
+          wait pads 6 timeout 20000vs
+          dump h009
+          wait pads 6 timeout 20000vs
+          dump h010
+          wait pads 6 timeout 20000vs
+          dump h011
+          wait pads 6 timeout 20000vs
+          dump h012
+          wait pads 6 timeout 20000vs
+          dump h013
+          wait pads 6 timeout 20000vs
+          dump h014
+          wait pads 6 timeout 20000vs
+          dump h015
+          wait pads 6 timeout 20000vs
+          dump h016
+          wait pads 6 timeout 20000vs
+          dump h017
+          wait pads 6 timeout 20000vs
+          dump h018
+          wait pads 6 timeout 20000vs
+          dump h019
+          wait pads 6 timeout 20000vs
+          dump h020
+          wait pads 6 timeout 20000vs
+          dump h021
+          wait pads 6 timeout 20000vs
+          dump h022
+          wait pads 6 timeout 20000vs
+          dump h023
+          wait pads 6 timeout 20000vs
+          dump h024
+          wait pads 6 timeout 20000vs
+          dump h025
+          wait pads 6 timeout 20000vs
+          dump h026
+          wait pads 6 timeout 20000vs
+          dump h027
+          wait pads 6 timeout 20000vs
+          dump h028
+          wait pads 6 timeout 20000vs
+          dump h029
+          wait pads 6 timeout 20000vs
+          dump h030
+          wait pads 6 timeout 20000vs
+          dump h031
+          wait pads 6 timeout 20000vs
+          dump h032
+          wait pads 6 timeout 20000vs
+          dump h033
+          wait pads 6 timeout 20000vs
+          dump h034
+          wait pads 6 timeout 20000vs
+          dump h035
+          wait pads 6 timeout 20000vs
+          dump h036
+          wait pads 6 timeout 20000vs
+          dump h037
+          wait pads 6 timeout 20000vs
+          dump h038
+          wait pads 6 timeout 20000vs
+          dump h039
+          wait pads 6 timeout 20000vs
+          dump h040
+          wait pads 6 timeout 20000vs
+          dump h041
+          wait pads 6 timeout 20000vs
+          dump h042
+          wait pads 6 timeout 20000vs
+          dump h043
+          wait pads 6 timeout 20000vs
+          dump h044
+          wait pads 6 timeout 20000vs
+          dump h045
+          wait pads 6 timeout 20000vs
+          dump h046
+          wait pads 6 timeout 20000vs
+          dump h047
+          wait pads 6 timeout 20000vs
+          dump h048
+          wait pads 6 timeout 20000vs
+          dump h049
+          wait pads 6 timeout 20000vs
+          dump h050
+          stick none
+          wait pads 30 timeout 20000vs
+          mark cal_done
+# pause -> SHOW OBJECTIVE
+          press start
+          wait pads 30 timeout 20000vs
+          dump p_pause
+          press down
+          wait pads 20 timeout 20000vs
+          dump p_down
+          press cross
+          wait lsn 1127430-1146821 timeout 900vs else continue
+          mark p_objective_cue_or_timeout
+          wait pads 30 timeout 3000vs else continue
+          dump p_obj30
+          press cross
+          wait lsn 1127430-1146821 timeout 120vs else continue
+          dump p_after_cross2
+          press circle
+          wait lsn 1127430-1146821 timeout 120vs else continue
+          dump p_after_circle
+          press triangle
+          wait lsn 1127430-1146821 timeout 120vs else continue
+          dump p_after_triangle
+          press start
+          wait lsn 1127430-1146821 timeout 120vs else continue
+          dump p_after_start
+          wait pads 60 timeout 3000vs else continue
+          mark resumed
+# other buttons in gameplay
+          press select
+          wait lsn 1127430-1146821 timeout 180vs else continue
+          dump b_select
+          press select
+          wait lsn 1127430-1146821 timeout 180vs else continue
+          dump b_select2
+          press square
+          wait lsn 1127430-1146821 timeout 120vs else continue
+          dump b_square
+          press circle
+          wait lsn 1127430-1146821 timeout 120vs else continue
+          dump b_circle
+          press r3
+          wait lsn 1127430-1146821 timeout 120vs else continue
+          dump b_r3
+          press l3
+          wait lsn 1127430-1146821 timeout 120vs else continue
+          dump b_l3
+          mark chk1_end
+          pass chk1 done
