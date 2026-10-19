@@ -1,6 +1,7 @@
 .github/ISSUE_TEMPLATE/bug_report.yml
 .github/ISSUE_TEMPLATE/config.yml
 .github/ISSUE_TEMPLATE/setup_problem.yml
+.github/RELEASE_TEMPLATE.md
 .gitignore
 CHANGELOG.md
 CONTRIBUTING.md

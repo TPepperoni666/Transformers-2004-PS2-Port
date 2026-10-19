@@ -1,38 +1,45 @@
-# v0.8.3 release notes template
+# Transformers PS2 Port v0.8.3 - first public release
 
-Draft: replace every placeholder below using verified results before publishing. This file is a format, not a claim that a fix or release has shipped. Use relative issue links so the template does not need a hard-coded repository owner.
+A native PC port of **Transformers (PS2, 2004, NTSC-U SLUS-20668)**, made by statically recompiling the game's code to C++ with PS2Recomp. It is not an emulator: the game's own code runs as a native program, with parallel-gs (Vulkan) drawing the PS2 graphics.
 
-Release date: <YYYY-MM-DD>
-Source revision: <immutable revision>
-Previous release: <tag>
+> **Bring your own disc.** This release contains no game files and no code generated from them. Setup verifies your own NTSC-U disc image and generates everything locally. There is no download-and-play build, and there never will be one here.
 
-## Fixed issues
+## What you get
+- The game running natively on Windows (and the Windows build under Proton on a Linux handheld), played well into the campaign.
+- Widescreen (16:10, 16:9, 21:9) with an in-game PC settings menu, plus an experimental "Show more at screen edges" option.
+- Optional sharper output / supersampling, controller and keyboard support.
+- VU1 work generated ahead of time from your own disc at setup.
+- An optional "optimise for this PC" step (about 1.5 hours), off by default.
 
-<!-- Replace ISSUE_NUMBER and the description; repeat one row per verified fix. Do not invent issue numbers or mark an unresolved report fixed. -->
-| Issue | User-visible fix | Verification |
-|---|---|---|
-| [#ISSUE_NUMBER](../../issues/ISSUE_NUMBER) | <symptom, trigger and resulting behaviour> | <route/check, configuration and result> |
+## New in v0.8.3
+- Faster EE checkpoints and RAM stores.
+- Boss health gauge fixed in widescreen: the fill pieces no longer break away from the frame after the first hit (16:10, 21:9).
+- Lower lock overhead under Proton (a lock-free check on a hot queue), and a widescreen fix for the Mini-Con pickup menu (from the 0.8.2 work).
+- A test-only diagnostic logging stall fixed.
+- New default-off presentation trace (`PS2X_PRESENT_TRACE=1`) for investigating frame stalls. Experimental: long sessions can exceed its log limit.
+- Setup now downloads the pinned SDK function-fingerprint database from the upstream PS2Recomp project and checks its hash. This repository does not redistribute that database. **Git is needed on first setup.**
 
-For changes with no existing report, create or identify a tracking issue before publishing an issue-linked entry. If there are no gameplay fixes, say so and list only the documentation/setup changes that actually shipped.
+## Requirements (short version)
+Your NTSC-U disc as a 2048-byte-sector ISO, Windows 11 with Visual Studio 2022 Build Tools, Python 3.11+ (`pyelftools`), CMake 3.21+, Ninja, Git, the Vulkan SDK and a Vulkan GPU. See the README for the full list and [setup](https://github.com/TPepperoni666/Transformers-2004-PS2-Port/blob/main/docs/SETUP.md).
 
-## Setup and update
-
-Bring your own legally obtained NTSC-U disc SLUS-20668. This release contains no game files or generated game code. Follow [setup](docs/SETUP.md); optional optimise is off by default and can take about 1.5 hours depending on hardware.
-
-Manual update: obtain the tagged source from this repository's Releases page, keep your disc and private work folder, and follow [build and resume](docs/BUILD.md). Back up your saves before regenerating or rebuilding. Record any release-specific migration steps here: <steps or none>. Do not overwrite a working installation until the new build launches and the existing saves are verified. No self-updater is included.
-
-## Tested for this release
-
-<List only the platforms, GPU/driver versions, disc, routes and save-persistence checks actually tested for v0.8.3. Separate older coverage from this release's results. Record counter/hash verdicts and any checks not run. Do not paste private logs.>
-
-See [Support](README.md#support) for the general coverage matrix. Limited scripted routes do not prove a complete campaign playthrough. PAL, macOS, Intel GPUs and other handhelds remain untested unless qualified explicitly.
+## Tested
+- Windows 11 desktops (NVIDIA RTX 40 series, AMD RX 9070 class): limited setup and play coverage.
+- A Linux handheld running the Windows build under Proton, at 15-35 W: limited play coverage.
+- Only the NTSC-U disc (SLUS-20668) is supported. PAL, macOS, Intel GPUs and other handhelds are untested.
 
 ## Known issues
+- Brief presentation stalls (short black or frozen frames) have been seen on one Linux handheld under Proton. The trace switch above is there to help find the cause.
+- The experimental native high-resolution renderer is not included in this release.
+- Testing uses scripted routes and play sessions; this is not proof of a bug-free full playthrough.
 
-- Brief presentation stalls have been seen on one Linux handheld under Proton; record whether this release reproduced them.
-- The experimental native renderer is not included; rendering uses parallel-gs.
-- <Link remaining reports, limitations and workarounds; do not silently drop unresolved issues.>
+## Reporting problems
+Use the **Bug report** or **Setup problem** issue forms. Never upload disc images, game files, saves or memory dumps.
 
-## Contributors and provenance
+## Notes for other porters
+Everything we found - runtime bugs and fixes, performance results including what did not help, Proton and widescreen lessons and our testing method - is in [docs/findings](https://github.com/TPepperoni666/Transformers-2004-PS2-Port/blob/main/docs/findings/README.md).
 
-<Link merged PRs, disclose AI assistance and describe review/testing. Preserve applicable notices; no game-derived data may be included.>
+## AI assistance
+This port was built with heavy AI assistance, directed and play-tested by the project owner.
+
+## Credits and licence
+Built on PS2Recomp and parallel-gs, with other open-source components credited in CREDITS.md and NOTICE. Licensed under GPL-3.0; see LICENSE.
